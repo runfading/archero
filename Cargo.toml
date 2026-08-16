@@ -1,0 +1,19 @@
+[package]
+name = "archero"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.19.1", features = ["bevy_dev_tools"] }
+bevy_widget = { path = "../bevy_widget" }
+
+# config
+serde = { version = "1.0.229", features = ["derive"] }
+ron = { version = "0.12.2" }
+
+
+[profile.dev.package.parley]
+debug-assertions = false
+
+[profile.dev.package.icu_provider]
+debug-assertions = false
