@@ -22,7 +22,7 @@ fn spawn_menu(mut commands: Commands) {
 }
 
 fn despawn_menu(mut commands: Commands, query: Query<Entity, With<MenuRoot>>) {
-    query.for_each(|e| commands.entity(e).despawn());
+    query.iter().for_each(|e| commands.entity(e).despawn());
 }
 
 fn menu_button() -> impl Scene {
@@ -77,6 +77,9 @@ fn children() -> impl Scene {
                     align_items: AlignItems::Center,
                     border_radius: BorderRadius::all(px(12)),
                 }
+                on(|_event: On<Activate>,mut next_state: ResMut<NextState<GameState>>|{
+                    next_state.set(GameState::InGame);
+                })
             ),
             (
                 button_with_label(

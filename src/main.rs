@@ -1,9 +1,11 @@
 pub mod config;
 mod font;
+mod game;
 mod menu;
 
 use crate::config::StartUpConfig;
 use crate::font::FontPlugin;
+use crate::game::GamePlugin;
 use crate::menu::MenuPlugin;
 use bevy::prelude::*;
 
@@ -24,6 +26,13 @@ pub enum RunPhase {
     Paused,
 }
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GameSet {
+    Core,
+    Gameplay,
+    Ui,
+}
+
 fn main() {
     let start_up_config = StartUpConfig::load();
 
@@ -41,11 +50,24 @@ fn main() {
             }),
             ..default()
         }))
+        .configure_sets(
+            Update,
+            (
+                GameSet::Core,
+                GameSet::Gameplay.after(GameSet::Core),
+                GameSet::Ui.after(GameSet::Gameplay),
+            ),
+        )
+        .configure_sets(
+            OnEnter(GameState::InGame),
+            (GameSet::Gameplay, GameSet::Ui.after(GameSet::Gameplay)),
+        )
         .add_plugins(FontPlugin)
         .init_state::<GameState>()
         .add_sub_state::<RunPhase>()
         .add_systems(Startup, spawn_world)
         .add_plugins(MenuPlugin)
+        .add_plugins(GamePlugin)
         .run();
 }
 
