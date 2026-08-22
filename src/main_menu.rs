@@ -79,7 +79,7 @@ fn children() -> impl Scene {
                     border_radius: BorderRadius::all(px(12)),
                 }
                 on(|_event: On<Activate>,mut next_state: ResMut<NextState<GameState>>|{
-                    next_state.set(GameState::InGame);
+                    next_state.set(GameState::GameLoading);
                 })
             ),
             (

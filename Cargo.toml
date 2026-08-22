@@ -7,6 +7,7 @@ edition = "2024"
 bevy = { version = "0.19.1", features = ["bevy_dev_tools"] }
 bevy_widget = { path = "../bevy_widget" }
 bevy_asset_loader = "0.27.0"
+leafwing-input-manager = "0.21.0"
 
 # config
 serde = { version = "1.0.229", features = ["derive"] }
@@ -18,3 +19,6 @@ debug-assertions = false
 
 [profile.dev.package.icu_provider]
 debug-assertions = false
+
+[features]
+debug = ["bevy/debug"]

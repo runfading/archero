@@ -1,5 +1,6 @@
+use crate::game::RunStats;
+use crate::game::health::Health;
 use crate::game::player::Player;
-use crate::game::{Health, RunStats};
 use crate::{GameSet, GameState, RunPhase};
 use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
