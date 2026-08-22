@@ -4,23 +4,41 @@ use crate::{GameSet, GameState, RunPhase};
 use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
+use bevy_widget::prelude::{ButtonBuilder, ButtonStyle};
 
+/// 游戏运行ui根组件
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudRoot;
+
+/// 生命值文本
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudHpText;
+
+/// 生命值填充ui
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudHpFill;
+
+/// 波次信息
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudInfoText;
+
+/// 金币信息
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudGoldText;
+
+/// 击杀数信息
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudKillsText;
+
+/// 经验值信息
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudXpFill;
+
+/// 经验值文本
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct HudXpText;
+
+/// 暂停菜单
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct PauseOverlay;
 
@@ -29,7 +47,15 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::InGame), spawn_hud.in_set(GameSet::Ui))
-            .add_systems(OnExit(GameState::InGame), despawn_hud);
+            .add_systems(OnExit(GameState::InGame), despawn_hud.in_set(GameSet::Ui))
+            .add_systems(
+                OnEnter(RunPhase::Paused),
+                spawn_pause_hud.in_set(GameSet::Ui),
+            )
+            .add_systems(
+                OnExit(RunPhase::Paused),
+                despawn_pause_menu.in_set(GameSet::Ui),
+            );
     }
 }
 
@@ -58,6 +84,11 @@ fn spawn_hud(mut commands: Commands, query: Query<&Health, With<Player>>, states
     });
 }
 
+fn spawn_pause_hud(mut commands: Commands) {
+    commands.spawn_scene(pause_hud());
+}
+
+/// 生命值hud
 fn hp_hud(health: &Health) -> impl Scene {
     bsn! {
         #生命值hud
@@ -91,6 +122,7 @@ fn hp_hud(health: &Health) -> impl Scene {
     }
 }
 
+/// 波次hud
 fn wav_hud() -> impl Scene {
     bsn! {
          Node {
@@ -110,6 +142,7 @@ fn wav_hud() -> impl Scene {
     }
 }
 
+/// 状态（击杀、金币、暂停键等）hud
 fn state_hud(state: &RunStats) -> impl Scene {
     let gold_text = format!("金币 {}", state.gold);
     let kills_text = format!("击杀 {}", state.kills);
@@ -137,7 +170,23 @@ fn state_hud(state: &RunStats) -> impl Scene {
                 TextColor(Color::srgb(0.80, 0.82, 0.88))
             ),
             (
-                Button
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                             normal: Color::srgb(0.20, 0.25, 0.35),
+                             hovered: Color::srgb(0.27, 0.33, 0.45),
+                             pressed: Color::srgb(0.14, 0.18, 0.27),
+                             ..default()
+                        })
+                        .label(
+                            bsn! {
+                                Text::new("暂停")
+                                TextFont { font_size: FontSize::Px(18.0), }
+                                TextColor(Color::WHITE)
+                            }
+                        )
+                        .build()
+                }
                 Node {
                     width: px(72),
                     height: px(40),
@@ -145,14 +194,6 @@ fn state_hud(state: &RunStats) -> impl Scene {
                     align_items: AlignItems::Center,
                     border_radius: BorderRadius::all(px(8)),
                 }
-                BackgroundColor(Color::srgb(0.20, 0.25, 0.35))
-                Children [
-                    (
-                        Text::new("暂停")
-                        TextFont { font_size: FontSize::Px(18.0), }
-                        TextColor(Color::WHITE)
-                    )
-                ]
                 on(|_event: On<Activate>, mut next_state: ResMut<NextState<RunPhase>>|{
                     next_state.set(RunPhase::Paused);
                 })
@@ -161,6 +202,7 @@ fn state_hud(state: &RunStats) -> impl Scene {
     }
 }
 
+/// 经验值hud
 fn ex_hud() -> impl Scene {
     bsn! {
         Node {
@@ -195,8 +237,118 @@ fn ex_hud() -> impl Scene {
     }
 }
 
-fn despawn_hud(mut commands: Commands) {}
+/// 游戏暂停ui
+fn pause_hud() -> impl Scene {
+    bsn! {
+        PauseOverlay
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            row_gap: px(14),
+        }
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6))
+        Children [
+            (
+                Text::new("已暂停")
+                TextFont { font_size: FontSize::Px(46.0),}
+                TextColor(Color::WHITE)
+            ),
+            (
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                            normal: Color::srgb(0.20, 0.45, 0.24),
+                            hovered: Color::srgb(0.27, 0.56, 0.32),
+                            pressed: Color::srgb(0.14, 0.34, 0.18),
+                            ..default()
+                        })
+                        .label(bsn! {
+                            Text::new("继续游戏")
+                            TextFont { font_size: FontSize::Px(22.0), }
+                            TextColor(Color::WHITE)
+                        })
+                        .build()
+                }
+                Node {
+                    width: px(240),
+                    height: px(56),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border_radius: BorderRadius::all(px(12)),
+                }
+                on(|_event:On<Activate>, mut next_state: ResMut<NextState<RunPhase>>|{
+                    next_state.set(RunPhase::Playing);
+                })
+            ),
+            (
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                            normal: Color::srgb(0.20, 0.34, 0.58),
+                            hovered: Color::srgb(0.27, 0.44, 0.70),
+                            pressed: Color::srgb(0.14, 0.25, 0.46),
+                            ..default()
+                        })
+                        .label(bsn! {
+                            Text::new("重新开始")
+                            TextFont { font_size: FontSize::Px(22.0),}
+                            TextColor(Color::WHITE)
+                        })
+                        .build()
+                }
+                Node {
+                    width: px(240),
+                    height: px(56),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border_radius: BorderRadius::all(px(12)),
+                }
+                on(|_event:On<Activate>, _next_state: ResMut<NextState<RunPhase>>|{
+                    info!("重新开始")
+                })
+            ),
+            (
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                            normal: Color::srgb(0.35, 0.30, 0.26),
+                            hovered: Color::srgb(0.46, 0.39, 0.33),
+                            pressed: Color::srgb(0.26, 0.22, 0.19),
+                            ..default()
+                        })
+                        .label(bsn! {
+                            Text::new("返回主菜单")
+                            TextFont { font_size: FontSize::Px(22.0), }
+                            TextColor(Color::WHITE)
+                        })
+                        .build()
+                }
+                Node {
+                    width: px(240),
+                    height: px(56),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border_radius: BorderRadius::all(px(12)),
+                }
+                on(|_event:On<Activate>, mut next_state: ResMut<NextState<GameState>>|{
+                    next_state.set(GameState::MainMenu);
+                })
+            )
+        ]
+    }
+}
 
-fn pause_menu(mut commands: Commands) {}
+fn despawn_hud(mut commands: Commands, hud_query: Query<Entity, With<HudRoot>>) {
+    for entity in hud_query {
+        commands.entity(entity).despawn();
+    }
+}
 
-fn despawn_pause_menu(mut commands: Commands) {}
+fn despawn_pause_menu(mut commands: Commands, pause_ui_query: Query<Entity, With<PauseOverlay>>) {
+    for entity in pause_ui_query.iter() {
+        commands.entity(entity).despawn();
+    }
+}

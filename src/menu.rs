@@ -1,7 +1,7 @@
 use crate::GameState;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_widget::prelude::{ButtonStyle, PrimaryButton, button_with_label};
+use bevy_widget::prelude::{ButtonBuilder, ButtonStyle};
 
 pub struct MenuPlugin;
 
@@ -56,20 +56,21 @@ fn children() -> impl Scene {
                 TextColor(Color::srgb(0.72, 0.75, 0.82))
             ),
             (
-                button_with_label(
-                    PrimaryButton::default(),
-                    ButtonStyle {
-                        normal: Color::srgb_u8(51, 115, 61),
-                        hovered: Color::srgb_u8(65, 137, 76),
-                        pressed: Color::srgb_u8(39, 91, 47),
-                        ..default()
-                    },
-                    bsn! {
-                        Text::new("关卡模式")
-                        TextFont { font_size: FontSize::Px(24.0), }
-                        TextColor(Color::WHITE)
-                    }
-                )
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                            normal: Color::srgb_u8(51, 115, 61),
+                            hovered: Color::srgb_u8(65, 137, 76),
+                            pressed: Color::srgb_u8(39, 91, 47),
+                            ..default()
+                        })
+                        .label(bsn! {
+                            Text::new("关卡模式")
+                            TextFont { font_size: FontSize::Px(24.0), }
+                            TextColor(Color::WHITE)
+                        })
+                        .build()
+                }
                 Node {
                     width: px(260),
                     height: px(65),
@@ -82,20 +83,21 @@ fn children() -> impl Scene {
                 })
             ),
             (
-                button_with_label(
-                    PrimaryButton::default(),
-                    ButtonStyle {
-                        normal: Color::srgb_u8(51, 97, 148),
-                        hovered: Color::srgb_u8(66, 117, 174),
-                        pressed: Color::srgb_u8(39, 76, 119),
-                        ..default()
-                    },
-                    bsn! {
-                        Text::new("无尽模式")
-                        TextFont { font_size: FontSize::Px(24.0), }
-                        TextColor(Color::WHITE)
-                    }
-                )
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                            normal: Color::srgb_u8(51, 97, 148),
+                            hovered: Color::srgb_u8(66, 117, 174),
+                            pressed: Color::srgb_u8(39, 76, 119),
+                            ..default()
+                        })
+                        .label(bsn! {
+                            Text::new("无尽模式")
+                            TextFont { font_size: FontSize::Px(24.0), }
+                            TextColor(Color::WHITE)
+                        })
+                        .build()
+                }
                 Node {
                     width: px(260),
                     height: px(65),
@@ -115,20 +117,21 @@ fn children() -> impl Scene {
                 TextFont { font_size: FontSize::Px(16.0)}
             ),
             (
-                button_with_label(
-                    PrimaryButton::default(),
-                    ButtonStyle {
-                        normal: Color::srgb_u8(76, 51, 51),
-                        hovered: Color::srgb_u8(101, 67, 67),
-                        pressed: Color::srgb_u8(59, 39, 39),
-                        ..default()
-                    },
-                    bsn! {
-                        Text::new("退出游戏")
-                        TextFont { font_size: FontSize::Px(24.0), }
-                        TextColor(Color::WHITE)
-                    }
-                )
+                {
+                    ButtonBuilder::builder()
+                        .button_style(ButtonStyle {
+                            normal: Color::srgb_u8(76, 51, 51),
+                            hovered: Color::srgb_u8(101, 67, 67),
+                            pressed: Color::srgb_u8(59, 39, 39),
+                            ..default()
+                        })
+                        .label(bsn! {
+                            Text::new("退出游戏")
+                            TextFont { font_size: FontSize::Px(24.0), }
+                            TextColor(Color::WHITE)
+                        })
+                        .build()
+                }
                 Node {
                     width: px(260),
                     height: px(65),

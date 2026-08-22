@@ -62,6 +62,10 @@ fn main() {
             OnEnter(GameState::InGame),
             (GameSet::Gameplay, GameSet::Ui.after(GameSet::Gameplay)),
         )
+        .configure_sets(
+            OnExit(GameState::InGame),
+            (GameSet::Ui, GameSet::Gameplay.after(GameSet::Ui)),
+        )
         .add_plugins(FontPlugin)
         .init_state::<GameState>()
         .add_sub_state::<RunPhase>()

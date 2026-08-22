@@ -114,7 +114,10 @@ impl Plugin for GamePlugin {
                 OnEnter(GameState::InGame),
                 setup_run.in_set(GameSet::Gameplay),
             )
-            .add_systems(OnExit(GameState::InGame), teardown_run)
+            .add_systems(
+                OnExit(GameState::InGame),
+                teardown_run.in_set(GameSet::Gameplay),
+            )
             .add_plugins(HudPlugin);
     }
 }
