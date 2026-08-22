@@ -1,20 +1,26 @@
+mod asset;
 pub mod config;
 mod font;
 mod game;
-mod menu;
+mod main_menu;
 
+use crate::asset::AssetLoadingPlugin;
 use crate::config::StartUpConfig;
 use crate::font::FontPlugin;
 use crate::game::GamePlugin;
-use crate::menu::MenuPlugin;
+use crate::main_menu::MenuPlugin;
 use bevy::prelude::*;
+use bevy_asset_loader::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
 pub enum GameState {
     #[default]
+    StartupLoading,
     MainMenu,
+    GameLoading,
     InGame,
     GameOver,
+    AssetLoadingError,
 }
 
 #[derive(SubStates, Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
@@ -66,8 +72,9 @@ fn main() {
             OnExit(GameState::InGame),
             (GameSet::Ui, GameSet::Gameplay.after(GameSet::Ui)),
         )
-        .add_plugins(FontPlugin)
         .init_state::<GameState>()
+        .add_plugins(AssetLoadingPlugin)
+        .add_plugins(FontPlugin)
         .add_sub_state::<RunPhase>()
         .add_systems(Startup, spawn_world)
         .add_plugins(MenuPlugin)
