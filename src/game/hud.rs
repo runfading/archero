@@ -2,7 +2,6 @@ use crate::game::RunStats;
 use crate::game::health::Health;
 use crate::game::player::Player;
 use crate::{GameSet, GameState, RunPhase};
-use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy_widget::prelude::{ButtonBuilder, ButtonStyle};

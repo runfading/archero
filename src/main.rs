@@ -10,7 +10,6 @@ use crate::font::FontPlugin;
 use crate::game::GamePlugin;
 use crate::main_menu::MenuPlugin;
 use bevy::prelude::*;
-use bevy_asset_loader::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
 pub enum GameState {

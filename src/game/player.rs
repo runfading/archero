@@ -1,10 +1,9 @@
-use crate::asset::{GameAssets, GameMeshAssets};
+use crate::asset::GameMeshAssets;
+use crate::config::PlayerConfig;
 use crate::game::health::Health;
 use crate::game::{Faction, RunEntity};
 use crate::{GameSet, GameState, RunPhase};
-use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
-use bevy::scene::SceneFunction;
 use leafwing_input_manager::prelude::*;
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
@@ -18,8 +17,6 @@ enum Action {
     Ability1,
     Ultimate,
 }
-
-const PLAYER_SPEED: f32 = 240.0;
 
 impl Action {
     // Lists like this can be very useful for quickly matching subsets of actions
@@ -38,7 +35,13 @@ impl Action {
 
 #[derive(Component, Debug, Default, Clone)]
 #[require(RunEntity, InputMap<Action> = Player::default_input_map(), Faction::Player)]
-pub struct Player {}
+pub struct Player {
+    pub attack_timer: f32,
+    pub move_speed: f32,
+    pub level: u32,
+    pub xp: u32,
+    pub xp_to_next: u32,
+}
 
 impl Player {
     fn default_input_map() -> InputMap<Action> {
@@ -70,6 +73,16 @@ impl Player {
 
         input_map
     }
+
+    fn initialize(player_config: &PlayerConfig) -> Self {
+        Self {
+            attack_timer: player_config.attack_interval,
+            move_speed: player_config.move_speed,
+            level: 1,
+            xp: 0,
+            xp_to_next: 10,
+        }
+    }
 }
 
 pub struct PlayerPlugin;
@@ -89,9 +102,9 @@ impl Plugin for PlayerPlugin {
 
 fn movement(
     time: Res<Time>,
-    mut query: Query<(&ActionState<Action>, &mut Transform), With<Player>>,
+    mut query: Query<(&ActionState<Action>, &mut Transform, &Player), With<Player>>,
 ) {
-    let (action_state, mut transform) = match query.single_mut() {
+    let (action_state, mut transform, player) = match query.single_mut() {
         Ok(query) => query,
         Err(err) => {
             error!("更新玩家坐标有问题：{}", err);
@@ -106,13 +119,18 @@ fn movement(
         .fold(Vec2::ZERO, |sum, direction| sum + *direction)
         .normalize_or_zero();
 
-    transform.translation += (direction * PLAYER_SPEED * time.delta_secs()).extend(0.0);
+    transform.translation += (direction * player.move_speed * time.delta_secs()).extend(0.0);
 }
 
-pub fn spawn_player(commands: &mut Commands, assets: &GameMeshAssets) {
+pub fn spawn_player(
+    commands: &mut Commands,
+    assets: &GameMeshAssets,
+    player_config: &PlayerConfig,
+) {
+    let player = Player::initialize(player_config);
     commands
         .spawn_scene(bsn! {
-            Player {}
+            template_value(player)
             Health::full(60.0)
         })
         .insert((
