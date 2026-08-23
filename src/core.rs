@@ -1,27 +1,14 @@
-mod endless;
-mod health;
-mod hud;
-mod level;
-mod player;
-
+use crate::actors::player::{PlayerPlugin, spawn_player};
 use crate::asset::{GameAssets, GameMeshAssets};
 use crate::config::PlayerConfig;
-use crate::game::hud::HudPlugin;
-use crate::game::player::{PlayerPlugin, spawn_player};
 use crate::{GameSet, GameState, RunPhase};
 use bevy::prelude::*;
+
+pub mod health;
 
 /// 局内单位标记
 #[derive(Component, Default, Copy, Clone)]
 pub struct RunEntity;
-
-/// 本局累计数据。
-#[derive(Resource, Default)]
-pub struct RunStats {
-    pub gold: usize,
-    pub kills: usize,
-    pub time: f32,
-}
 
 /// 单位阵营
 #[derive(Component, Debug, Clone, Copy, Eq, PartialEq)]
@@ -30,11 +17,19 @@ pub enum Faction {
     Enemy,
 }
 
-pub struct GamePlugin;
+#[derive(Resource, Default)]
+pub struct RunStats {
+    pub gold: usize,
+    pub kills: usize,
+    pub time: f32,
+}
 
-impl Plugin for GamePlugin {
+pub struct CorePlugin;
+
+impl Plugin for CorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RunStats>()
+            .add_systems(Startup, crate::spawn_world)
             .add_systems(
                 OnEnter(GameState::InGame),
                 setup_run.in_set(GameSet::Gameplay),
@@ -43,8 +38,12 @@ impl Plugin for GamePlugin {
                 OnExit(GameState::InGame),
                 teardown_run.in_set(GameSet::Gameplay),
             )
-            .add_plugins((HudPlugin, PlayerPlugin));
+            .add_plugins(PlayerPlugin);
     }
+}
+
+fn spawn_world(mut commands: Commands) {
+    commands.spawn(Camera2d);
 }
 
 fn setup_run(
@@ -56,8 +55,6 @@ fn setup_run(
     mut next_phase: ResMut<NextState<RunPhase>>,
 ) {
     *stats = RunStats::default();
-    // *build = PlayerBuild::default();
-    // *choices = SkillChoices::default();
     next_phase.set(RunPhase::Playing);
     let player_config = if let Some(player_config) = game_assets.player_config(&player_config) {
         player_config

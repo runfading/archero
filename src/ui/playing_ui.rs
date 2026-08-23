@@ -1,6 +1,6 @@
-use crate::game::RunStats;
-use crate::game::health::Health;
-use crate::game::player::Player;
+use crate::actors::player::Player;
+use crate::core::RunStats;
+use crate::core::health::Health;
 use crate::{GameSet, GameState, RunPhase};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
@@ -42,9 +42,10 @@ struct HudXpText;
 #[derive(Component, Debug, Default, Copy, Clone)]
 struct PauseOverlay;
 
-pub struct HudPlugin;
+pub struct PlayingUiPlugin;
 
-impl Plugin for HudPlugin {
+/// 游玩ui（暂停ui，hud）
+impl Plugin for PlayingUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::InGame), spawn_hud.in_set(GameSet::Ui))
             .add_systems(OnExit(GameState::InGame), despawn_hud.in_set(GameSet::Ui))
@@ -85,7 +86,7 @@ fn spawn_hud(mut commands: Commands, query: Query<&Health, With<Player>>, states
 }
 
 fn spawn_pause_hud(mut commands: Commands) {
-    commands.spawn_scene(pause_hud());
+    commands.spawn_scene(pause_ui());
 }
 
 /// 生命值hud
@@ -142,7 +143,7 @@ fn wav_hud() -> impl Scene {
     }
 }
 
-/// 状态（击杀、金币、暂停键等）hud
+/// 状态（击杀、金币、暂停键等）ui
 fn state_hud(state: &RunStats) -> impl Scene {
     let gold_text = format!("金币 {}", state.gold);
     let kills_text = format!("击杀 {}", state.kills);
@@ -238,7 +239,7 @@ fn ex_hud() -> impl Scene {
 }
 
 /// 游戏暂停ui
-fn pause_hud() -> impl Scene {
+fn pause_ui() -> impl Scene {
     bsn! {
         PauseOverlay
         Node {

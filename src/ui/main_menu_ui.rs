@@ -3,9 +3,9 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy_widget::prelude::{ButtonBuilder, ButtonStyle};
 
-pub struct MenuPlugin;
+pub struct MainMenuUiPlugin;
 
-impl Plugin for MenuPlugin {
+impl Plugin for MainMenuUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::MainMenu), spawn_menu)
             .add_systems(OnExit(GameState::MainMenu), despawn_menu);

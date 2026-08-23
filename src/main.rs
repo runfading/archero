@@ -1,14 +1,16 @@
+mod actors;
 mod asset;
 pub mod config;
+mod core;
 mod font;
-mod game;
-mod main_menu;
+mod ui;
+mod world;
 
 use crate::asset::AssetLoadingPlugin;
 use crate::config::StartUpConfig;
+use crate::core::CorePlugin;
 use crate::font::FontPlugin;
-use crate::game::GamePlugin;
-use crate::main_menu::MenuPlugin;
+use crate::ui::UiPlugin;
 use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
@@ -71,13 +73,12 @@ fn main() {
             OnExit(GameState::InGame),
             (GameSet::Ui, GameSet::Gameplay.after(GameSet::Ui)),
         )
-        .init_state::<GameState>()
         .add_plugins(AssetLoadingPlugin)
         .add_plugins(FontPlugin)
+        .init_state::<GameState>()
         .add_sub_state::<RunPhase>()
-        .add_systems(Startup, spawn_world)
-        .add_plugins(MenuPlugin)
-        .add_plugins(GamePlugin)
+        .add_plugins(CorePlugin)
+        .add_plugins(UiPlugin)
         .run();
 }
 
