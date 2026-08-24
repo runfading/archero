@@ -1,4 +1,6 @@
-use crate::actors::player::{PlayerPlugin, spawn_player};
+use crate::actors::ActorsPlugin;
+use crate::actors::enemies::spawn_enemy;
+use crate::actors::player::spawn_player;
 use crate::asset::{GameAssets, GameMeshAssets};
 use crate::config::PlayerConfig;
 use crate::{GameSet, GameState, RunPhase};
@@ -17,11 +19,14 @@ pub enum Faction {
     Enemy,
 }
 
+#[derive(Component, Default, Debug, Clone)]
+pub struct MoveSpeed(pub f32);
+
 #[derive(Resource, Default)]
 pub struct RunStats {
     pub gold: usize,
     pub kills: usize,
-    pub time: f32,
+    pub _time: f32,
 }
 
 pub struct CorePlugin;
@@ -29,6 +34,7 @@ pub struct CorePlugin;
 impl Plugin for CorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RunStats>()
+            .add_plugins(ActorsPlugin)
             .add_systems(Startup, crate::spawn_world)
             .add_systems(
                 OnEnter(GameState::InGame),
@@ -37,8 +43,7 @@ impl Plugin for CorePlugin {
             .add_systems(
                 OnExit(GameState::InGame),
                 teardown_run.in_set(GameSet::Gameplay),
-            )
-            .add_plugins(PlayerPlugin);
+            );
     }
 }
 
@@ -67,7 +72,8 @@ fn setup_run(
 }
 
 fn init_run(commands: &mut Commands, asset: &GameMeshAssets, player_config: &PlayerConfig) {
-    spawn_player(commands, asset, player_config)
+    spawn_player(commands, asset, player_config);
+    spawn_enemy(commands, asset);
 }
 
 /// 清理游戏运行状态：

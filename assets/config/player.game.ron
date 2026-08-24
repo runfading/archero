@@ -1,7 +1,7 @@
 /* @[crate::config::PlayerConfig] */
 
 PlayerConfig(
-        move_speed: 1550.0,
+        move_speed: 150.0,
         base_hp: 100.0,
         damage: 10.0,
         attack_interval: 0.6,
