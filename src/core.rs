@@ -3,8 +3,11 @@ use crate::actors::enemies::spawn_enemy;
 use crate::actors::player::spawn_player;
 use crate::asset::{GameAssets, GameMeshAssets};
 use crate::config::PlayerConfig;
+use crate::world::level::config::LevelConfig;
+use crate::world::level::spawn::spawn_level;
 use crate::{GameSet, GameState, RunPhase};
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 
 pub mod health;
 
@@ -58,6 +61,8 @@ fn setup_run(
     player_config: Res<Assets<PlayerConfig>>,
     game_assets: Res<GameAssets>,
     mut next_phase: ResMut<NextState<RunPhase>>,
+    level_config: Res<Assets<LevelConfig>>,
+    window: Query<&Window, With<PrimaryWindow>>,
 ) {
     *stats = RunStats::default();
     next_phase.set(RunPhase::Playing);
@@ -68,12 +73,18 @@ fn setup_run(
         &PlayerConfig::default()
     };
 
-    init_run(&mut commands, &asset, player_config);
-}
+    let Some(level_config) = game_assets.level_001_config(&level_config) else {
+        warn!("无关卡配置");
+        return;
+    };
 
-fn init_run(commands: &mut Commands, asset: &GameMeshAssets, player_config: &PlayerConfig) {
-    spawn_player(commands, asset, player_config);
-    spawn_enemy(commands, asset);
+    let Ok(window) = window.single() else {
+        error!("找不到窗口");
+        return;
+    };
+
+    spawn_player(&mut commands, &asset, player_config);
+    spawn_level(&mut commands, &asset, level_config, window);
 }
 
 /// 清理游戏运行状态：

@@ -1,3 +1,4 @@
+use crate::actors::enemies::{Enemy, EnemyId};
 use bevy::asset::Asset;
 use bevy::prelude::*;
 use serde::Deserialize;
@@ -46,3 +47,5 @@ impl Default for PlayerConfig {
         }
     }
 }
+
+

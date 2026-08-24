@@ -152,7 +152,7 @@ impl EnemyId {
 }
 
 /// 敌人生成函数。每种敌人可以生成不同的 Bundle，但都直接将实体写入 World。
-pub type SpawnEnemyFn = fn(&mut Commands, &GameMeshAssets) -> Entity;
+pub type SpawnEnemyFn = fn(&mut Commands, &GameMeshAssets, Vec2) -> Entity;
 
 /// 路由注册
 pub struct EnemySpawnRegister {
@@ -166,7 +166,7 @@ inventory::collect!(EnemySpawnRegister);
 
 static SPAWN_ENEMY_MAP: OnceLock<HashMap<EnemyId, SpawnEnemyFn>> = OnceLock::new();
 
-pub fn spawn_enemy(commands: &mut Commands, assets: &GameMeshAssets) {
+pub fn spawn_enemy(commands: &mut Commands, assets: &GameMeshAssets, positon: Vec2) {
     let map = SPAWN_ENEMY_MAP.get_or_init(|| {
         let mut map = HashMap::new();
 
@@ -181,7 +181,7 @@ pub fn spawn_enemy(commands: &mut Commands, assets: &GameMeshAssets) {
         return;
     };
 
-    spawn_fn(commands, assets);
+    spawn_fn(commands, assets, positon);
 }
 
 pub struct EnemyPlugin;

@@ -1,5 +1,6 @@
 use crate::GameState;
 use crate::config::PlayerConfig;
+use crate::world::level::config::LevelConfig;
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 use bevy_common_assets::ron::RonAssetPlugin;
@@ -14,11 +15,17 @@ pub struct StartupAssets {
 pub struct GameAssets {
     #[asset(path = "config/player.game.ron")]
     player_config: Handle<PlayerConfig>,
+
+    #[asset(path = "levels/level_001.level.ron")]
+    level_001_config: Handle<LevelConfig>,
 }
 
 impl GameAssets {
     pub fn player_config<'a>(&self, config: &'a Assets<PlayerConfig>) -> Option<&'a PlayerConfig> {
         config.get(&self.player_config)
+    }
+    pub fn level_001_config<'a>(&self, config: &'a Assets<LevelConfig>) -> Option<&'a LevelConfig> {
+        config.get(&self.level_001_config)
     }
 }
 
@@ -83,21 +90,24 @@ pub struct AssetLoadingPlugin;
 
 impl Plugin for AssetLoadingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RonAssetPlugin::<PlayerConfig>::new(&["game.ron"]))
-            .add_loading_state(
-                LoadingState::new(GameState::StartupLoading)
-                    .continue_to_state(GameState::MainMenu)
-                    .load_collection::<StartupAssets>()
-                    .on_failure_continue_to_state(GameState::AssetLoadingError),
-            )
-            .add_loading_state(
-                LoadingState::new(GameState::GameLoading)
-                    .continue_to_state(GameState::InGame)
-                    .load_collection::<GameAssets>()
-                    .finally_init_resource::<GameMeshAssets>()
-                    .on_failure_continue_to_state(GameState::AssetLoadingError),
-            )
-            .add_systems(OnExit(GameState::InGame), unload_game_assets);
+        app.add_plugins((
+            RonAssetPlugin::<PlayerConfig>::new(&["game.ron"]),
+            RonAssetPlugin::<LevelConfig>::new(&["level.ron"]),
+        ))
+        .add_loading_state(
+            LoadingState::new(GameState::StartupLoading)
+                .continue_to_state(GameState::MainMenu)
+                .load_collection::<StartupAssets>()
+                .on_failure_continue_to_state(GameState::AssetLoadingError),
+        )
+        .add_loading_state(
+            LoadingState::new(GameState::GameLoading)
+                .continue_to_state(GameState::InGame)
+                .load_collection::<GameAssets>()
+                .finally_init_resource::<GameMeshAssets>()
+                .on_failure_continue_to_state(GameState::AssetLoadingError),
+        )
+        .add_systems(OnExit(GameState::InGame), unload_game_assets);
     }
 }
 

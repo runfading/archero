@@ -9,7 +9,7 @@ inventory::submit!(EnemySpawnRegister {
     spawn_fn: spawn,
 });
 
-fn spawn(commands: &mut Commands, assets: &GameMeshAssets) -> Entity {
+fn spawn(commands: &mut Commands, assets: &GameMeshAssets, position: Vec2) -> Entity {
     commands
         .spawn_scene(bsn! {
             {EnemyId::GoblinWarrior.enemy_template()}
@@ -19,7 +19,7 @@ fn spawn(commands: &mut Commands, assets: &GameMeshAssets) -> Entity {
         .insert((
             Mesh2d(assets.circle.clone()),
             MeshMaterial2d(assets.mat_melee.clone()),
-            Transform::from_xyz(10.0, 0.0, 1.).with_scale(Vec3::splat(14.0)),
+            Transform::from_translation(position.extend(1.0)).with_scale(Vec3::splat(14.0)),
         ))
         .id()
 }

@@ -15,8 +15,8 @@ ron = { version = "0.12.2" }
 bevy_asset_loader = "0.27.0"
 bevy_common_assets = { version = "0.17.0", features = ["ron"] }
 
-bon = "3.9.3"
 inventory = "0.3.24"
+rand = "0.10.2"
 
 [profile.dev.package.parley]
 debug-assertions = false

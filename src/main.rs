@@ -11,6 +11,7 @@ use crate::config::StartUpConfig;
 use crate::core::CorePlugin;
 use crate::font::FontPlugin;
 use crate::ui::UiPlugin;
+use crate::world::WorldPlugin;
 use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
@@ -78,6 +79,7 @@ fn main() {
         .init_state::<GameState>()
         .add_sub_state::<RunPhase>()
         .add_plugins(CorePlugin)
+        .add_plugins(WorldPlugin)
         .add_plugins(UiPlugin)
         .run();
 }
