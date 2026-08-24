@@ -1,18 +1,17 @@
 mod actors;
 mod asset;
-pub mod config;
 mod core;
 mod font;
 mod ui;
 mod world;
 
 use crate::asset::AssetLoadingPlugin;
-use crate::config::StartUpConfig;
 use crate::core::CorePlugin;
 use crate::font::FontPlugin;
 use crate::ui::UiPlugin;
 use crate::world::WorldPlugin;
 use bevy::prelude::*;
+use serde::Deserialize;
 
 #[derive(States, Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
 pub enum GameState {
@@ -39,6 +38,22 @@ pub enum GameSet {
     Core,
     Gameplay,
     Ui,
+}
+
+#[derive(Deserialize)]
+pub struct StartUpConfig {
+    pub title: String,
+    pub min_window_width: f32,
+    pub min_window_height: f32,
+    pub resolution: (u32, u32),
+}
+
+impl StartUpConfig {
+    /// 加载启动配置
+    pub fn load() -> Self {
+        ron::from_str(include_str!("../assets/config/start_config.ron"))
+            .expect("启动配置读取错误！")
+    }
 }
 
 fn main() {

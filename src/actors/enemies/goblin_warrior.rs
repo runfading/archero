@@ -1,4 +1,4 @@
-use crate::actors::enemies::{EnemyId, EnemySpawnRegister};
+use crate::actors::enemies::{EnemyId, EnemySpawnRegister, EnemyTier};
 use crate::asset::GameMeshAssets;
 use crate::core::MoveSpeed;
 use crate::core::health::Health;
@@ -15,6 +15,7 @@ fn spawn(commands: &mut Commands, assets: &GameMeshAssets, position: Vec2) -> En
             {EnemyId::GoblinWarrior.enemy_template()}
             Health::full(60.0)
             MoveSpeed(60.0)
+            EnemyTier::Tier1
         })
         .insert((
             Mesh2d(assets.circle.clone()),

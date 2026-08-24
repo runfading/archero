@@ -1,8 +1,8 @@
 use crate::actors::ActorsPlugin;
 use crate::actors::enemies::spawn_enemy;
+use crate::actors::player::config::PlayerConfig;
 use crate::actors::player::spawn_player;
 use crate::asset::{GameAssets, GameMeshAssets};
-use crate::config::PlayerConfig;
 use crate::world::level::config::LevelConfig;
 use crate::world::level::spawn::spawn_level;
 use crate::{GameSet, GameState, RunPhase};

@@ -1,10 +1,12 @@
+pub mod config;
+
 use crate::asset::GameMeshAssets;
-use crate::config::PlayerConfig;
 use crate::core::health::Health;
 use crate::core::{Faction, RunEntity};
 use crate::{GameSet, GameState, RunPhase};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
+use crate::actors::player::config::PlayerConfig;
 
 #[derive(Actionlike, PartialEq, Eq, Clone, Copy, Hash, Debug, Reflect)]
 enum Action {
