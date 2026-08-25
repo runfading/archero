@@ -31,7 +31,7 @@ impl Plugin for LevelDirectorPlugin {
                 .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing)))
                 .in_set(GameSet::Core),
         )
-        .add_systems(OnExit(GameState::InGame), director::cleanup_level);
+        .add_systems(OnExit(GameState::InGame), cleanup_level);
     }
 }
 

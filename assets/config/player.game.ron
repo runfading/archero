@@ -1,4 +1,4 @@
-/* @[crate::config::PlayerConfig] */
+/* @[crate::actors::player::config::PlayerConfig] */
 
 PlayerConfig(
         move_speed: 150.0,

@@ -1,9 +1,9 @@
 use crate::GameState;
+use crate::actors::player::config::PlayerConfig;
 use crate::world::level::config::LevelConfig;
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 use bevy_common_assets::ron::RonAssetPlugin;
-use crate::actors::player::config::PlayerConfig;
 
 #[derive(AssetCollection, Resource)]
 pub struct StartupAssets {

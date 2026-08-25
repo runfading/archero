@@ -1,4 +1,4 @@
-/* @[crate::config::StartUpConfig] */
+/* @[crate::StartUpConfig] */
 
 StartUpConfig(
     title: "弓箭传说",

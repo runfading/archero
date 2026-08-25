@@ -1,4 +1,5 @@
 use crate::actors::enemies::EnemyId;
+use crate::actors::enemies::config::EnemyConfig;
 use bevy::asset::Asset;
 use bevy::prelude::TypePath;
 use serde::Deserialize;
@@ -27,6 +28,6 @@ pub struct SpawnBatchConfig {
 /// 生成敌人配置
 #[derive(Deserialize, Debug)]
 pub struct EnemyBatchConfig {
-    pub enemy_id: EnemyId,
+    pub enemy_config: EnemyConfig,
     pub count: u32,
 }

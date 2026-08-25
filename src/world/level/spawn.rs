@@ -1,3 +1,4 @@
+use crate::actors::enemies::config::EnemyConfig;
 use crate::actors::enemies::{EnemyId, spawn_enemy};
 use crate::asset::GameMeshAssets;
 use crate::world::level::config::{LevelConfig, SpawnBatchConfig, WaveConfig};
@@ -75,15 +76,15 @@ pub fn spawn_batch_room(
 ) {
     let mut rng = rand::rng();
 
-    let mut spawn = |kind: EnemyId, count: u32| {
+    let mut spawn = |config: &EnemyConfig, count: u32| {
         for _ in 0..count {
             let pos = random_edge_pos(&mut rng, width, height);
-            spawn_enemy(commands, assets, pos)
+            spawn_enemy(commands, config, assets, pos)
         }
     };
 
     for enemy in batch_config.config.iter() {
-        spawn(enemy.enemy_id, enemy.count)
+        spawn(&enemy.enemy_config, enemy.count)
     }
 }
 

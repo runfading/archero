@@ -9,6 +9,7 @@ use crate::{GameSet, GameState, RunPhase};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
+pub mod attack;
 pub mod health;
 
 /// 局内单位标记

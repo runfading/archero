@@ -7,7 +7,12 @@ LevelConfig (
                   (
                       config: [
                         (
-                            enemy_id: GoblinWarrior,
+                            enemy_config: (
+                               id: GoblinWarrior,
+                               move_speed: 60.0,
+                               base_hp: 60.0,
+                               spec: Melee(),
+                            ),
                             count: 1,
                         )
                       ],
@@ -21,7 +26,12 @@ LevelConfig (
                   (
                       config: [
                          (
-                             enemy_id: GoblinWarrior,
+                             enemy_config: (
+                                id: GoblinWarrior,
+                                move_speed: 160.0,
+                                base_hp: 60.0,
+                                spec: Melee(),
+                             ),
                              count: 2,
                          )
                       ],

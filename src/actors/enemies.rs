@@ -1,5 +1,7 @@
+pub mod config;
 mod goblin_warrior;
 
+use crate::actors::enemies::config::EnemyConfig;
 use crate::actors::player::Player;
 use crate::asset::GameMeshAssets;
 use crate::core::health::Health;
@@ -23,16 +25,6 @@ pub enum EnemyRank {
     Normal,
     Elite,
     Boss,
-}
-
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash, VariantDefaults)]
-#[require(Enemy)]
-pub enum EnemyTier {
-    #[default]
-    Tier1,
-    Tier2,
-    Tier3,
-    Tier4,
 }
 
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash, VariantDefaults)]
@@ -68,91 +60,21 @@ pub enum EnemyClass {
 #[require(Enemy)]
 pub enum EnemyId {
     /// 哥布林战士
+    #[require(EnemyArchetype::Melee, EnemyClass::Warrior, EnemyRank::Normal)]
     GoblinWarrior,
     /// 骷髅弓箭手
+    #[require(EnemyArchetype::Ranged, EnemyClass::Archer, EnemyRank::Normal)]
     SkeletonArcher,
     /// 火法师
+    #[require(EnemyArchetype::Ranged, EnemyClass::Mage, EnemyRank::Elite)]
     FireMage,
     /// 治疗牧师
+    #[require(EnemyArchetype::Ranged, EnemyClass::Priest, EnemyRank::Elite)]
     HealingPriest,
-    /// 龙boss
-    DragonBoss,
-}
-
-// #[derive(Component, Debug, Clone, Deserialize)]
-// #[require(Enemy)]
-// pub enum AttackSpec {
-//     /// 近战
-//     Melee {
-//         damage: f32,
-//         range: f32,
-//         cooldown: f32,
-//     },
-//     /// 投掷物/发射物
-//     Projectile {
-//         damage: f32,
-//         range: f32,
-//         cooldown: f32,
-//         projectile_speed: f32,
-//     },
-//     /// 法术/技能
-//     Spell {
-//         damage: f32,
-//         radius: f32,
-//         cooldown: f32,
-//     },
-//     /// 治疗
-//     Heal {
-//         amount: f32,
-//         radius: f32,
-//         cooldown: f32,
-//     },
-// }
-
-impl EnemyId {
-    fn enemy_template(&self) -> Box<dyn Scene> {
-        match self {
-            EnemyId::GoblinWarrior => Box::new(bsn! {
-                EnemyArchetype::Melee
-                EnemyClass::Warrior
-                EnemyRank::Normal
-                Health
-                MoveSpeed
-            }),
-            EnemyId::SkeletonArcher => Box::new(bsn! {
-                EnemyArchetype::Ranged
-                EnemyClass::Archer
-                EnemyRank::Normal
-                Health
-                MoveSpeed
-            }),
-            EnemyId::FireMage => Box::new(bsn! {
-                EnemyArchetype::Ranged
-                EnemyClass::Mage
-                EnemyRank::Elite
-                Health
-                MoveSpeed
-            }),
-            EnemyId::HealingPriest => Box::new(bsn! {
-                EnemyArchetype::Ranged
-                EnemyClass::Priest
-                EnemyRank::Elite
-                Health
-                MoveSpeed
-            }),
-            EnemyId::DragonBoss => Box::new(bsn! {
-                EnemyArchetype::Ranged
-                EnemyClass::Priest
-                EnemyRank::Boss
-                Health
-                MoveSpeed
-            }),
-        }
-    }
 }
 
 /// 敌人生成函数。每种敌人可以生成不同的 Bundle，但都直接将实体写入 World。
-pub type SpawnEnemyFn = fn(&mut Commands, &GameMeshAssets, Vec2) -> Entity;
+pub type SpawnEnemyFn = fn(&mut Commands, &EnemyConfig, &GameMeshAssets, Vec2) -> Entity;
 
 /// 路由注册
 pub struct EnemySpawnRegister {
@@ -166,7 +88,12 @@ inventory::collect!(EnemySpawnRegister);
 
 static SPAWN_ENEMY_MAP: OnceLock<HashMap<EnemyId, SpawnEnemyFn>> = OnceLock::new();
 
-pub fn spawn_enemy(commands: &mut Commands, assets: &GameMeshAssets, positon: Vec2) {
+pub fn spawn_enemy(
+    commands: &mut Commands,
+    config: &EnemyConfig,
+    assets: &GameMeshAssets,
+    positon: Vec2,
+) {
     let map = SPAWN_ENEMY_MAP.get_or_init(|| {
         let mut map = HashMap::new();
 
@@ -176,12 +103,12 @@ pub fn spawn_enemy(commands: &mut Commands, assets: &GameMeshAssets, positon: Ve
         map
     });
 
-    let Some(spawn_fn) = map.get(&EnemyId::GoblinWarrior).copied() else {
+    let Some(spawn_fn) = map.get(&config.id).copied() else {
         warn!("未实现该敌人的生成函数");
         return;
     };
 
-    spawn_fn(commands, assets, positon);
+    spawn_fn(commands, config, assets, positon);
 }
 
 pub struct EnemyPlugin;
