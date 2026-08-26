@@ -2,9 +2,10 @@ pub mod config;
 
 use crate::actors::player::config::PlayerConfig;
 use crate::asset::GameMeshAssets;
-use crate::core::health::Health;
-use crate::core::{Faction, RunEntity};
-use crate::{GameSet, GameState, RunPhase};
+use crate::core::health::{DeathMessage, Health};
+use crate::core::{Faction, RunEntity, RunStats};
+use crate::{GameSet, GameState, RunPhase, RunSet};
+use avian2d::prelude::{Collider, CollisionEventsEnabled, RigidBody};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
@@ -94,10 +95,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(InputManagerPlugin::<Action>::default())
             .add_systems(
                 Update,
-                movement
-                    .run_if(in_state(GameState::InGame))
-                    .run_if(in_state(RunPhase::Playing))
-                    .in_set(GameSet::Gameplay),
+                movement.in_set(GameSet::Core).in_set(RunSet::Playing),
             );
     }
 }
@@ -132,10 +130,14 @@ pub fn spawn_player(
     let player = Player::initialize(player_config);
     commands
         .spawn_scene(bsn! {
+            #Player
             template_value(player)
-            Health::full(60.0)
         })
         .insert((
+            Health::full(player_config.base_hp),
+            RigidBody::Dynamic,
+            Collider::rectangle(1.0, 1.0),
+            CollisionEventsEnabled,
             Mesh2d(assets.circle.clone()),
             MeshMaterial2d(assets.mat_player.clone()),
             Transform::from_xyz(0.0, 0.0, 1.).with_scale(Vec3::splat(14.0)),

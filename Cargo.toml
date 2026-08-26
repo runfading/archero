@@ -7,6 +7,7 @@ edition = "2024"
 bevy = { version = "0.19.1", features = ["bevy_dev_tools"] }
 bevy_widget = { path = "../bevy_widget" }
 leafwing-input-manager = "0.21.0"
+avian2d = { version = "0.7.0" }
 
 # config
 serde = { version = "1.0.229", features = ["derive"] }

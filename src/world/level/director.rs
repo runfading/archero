@@ -15,6 +15,8 @@ pub struct LevelDirector {
     pub wave_index: usize,
     /// 波次以生产批
     pub batch_index: usize,
+    /// 所有波次是否已经生成完毕；场上敌人清空后即可通关。
+    pub all_waves_spawned: bool,
     /// 波次超时计时器
     pub wave_timer: Timer,
     /// 波次最后一次生产计时器
@@ -26,7 +28,7 @@ impl Plugin for LevelDirectorPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (enemies_num_game_loop, timer_level_game_loop)
+            (enemies_num_game_loop, timer_level_game_loop, complete_level)
                 .chain()
                 .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing)))
                 .in_set(GameSet::Core),
@@ -49,6 +51,10 @@ fn timer_level_game_loop(
         warn!("无关卡上下文");
         return;
     };
+
+    if director.all_waves_spawned {
+        return;
+    }
 
     let Some(level_config) = game_assets.level_001_config(&level_config) else {
         warn!("无关卡配置");
@@ -113,6 +119,7 @@ fn timer_level_game_loop(
             );
         } else {
             info!("关卡已经生成完成");
+            director.all_waves_spawned = true;
         }
     }
 }
@@ -124,8 +131,27 @@ fn enemies_num_game_loop(mut director: Option<ResMut<LevelDirector>>, enemies: Q
         return;
     };
 
+    if director.all_waves_spawned {
+        return;
+    }
+
     if enemies.iter().len() == 0 {
         director.spawn_timer.almost_finish();
+    }
+}
+
+/// 所有波次生成完毕且最后一批敌人被消灭后进入通关结算。
+fn complete_level(
+    director: Option<Res<LevelDirector>>,
+    enemies: Query<(), With<Enemy>>,
+    mut next_state: ResMut<NextState<GameState>>,
+) {
+    let Some(director) = director else {
+        return;
+    };
+
+    if director.all_waves_spawned && enemies.is_empty() {
+        next_state.set(GameState::GameClear);
     }
 }
 

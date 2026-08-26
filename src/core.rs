@@ -3,6 +3,9 @@ use crate::actors::enemies::spawn_enemy;
 use crate::actors::player::config::PlayerConfig;
 use crate::actors::player::spawn_player;
 use crate::asset::{GameAssets, GameMeshAssets};
+use crate::core::attack::AttackPlugin;
+use crate::core::health::HealthPlugin;
+use crate::core::pause::PausePlugin;
 use crate::world::level::config::LevelConfig;
 use crate::world::level::spawn::spawn_level;
 use crate::{GameSet, GameState, RunPhase};
@@ -11,6 +14,7 @@ use bevy::window::PrimaryWindow;
 
 pub mod attack;
 pub mod health;
+mod pause;
 
 /// 局内单位标记
 #[derive(Component, Default, Copy, Clone)]
@@ -30,7 +34,7 @@ pub struct MoveSpeed(pub f32);
 pub struct RunStats {
     pub gold: usize,
     pub kills: usize,
-    pub _time: f32,
+    pub time: f32,
 }
 
 pub struct CorePlugin;
@@ -38,7 +42,10 @@ pub struct CorePlugin;
 impl Plugin for CorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RunStats>()
+            .add_plugins(PausePlugin)
             .add_plugins(ActorsPlugin)
+            .add_plugins(AttackPlugin)
+            .add_plugins(HealthPlugin)
             .add_systems(Startup, crate::spawn_world)
             .add_systems(
                 OnEnter(GameState::InGame),
@@ -47,8 +54,18 @@ impl Plugin for CorePlugin {
             .add_systems(
                 OnExit(GameState::InGame),
                 teardown_run.in_set(GameSet::Gameplay),
+            )
+            .add_systems(
+                Update,
+                update_run_time
+                    .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing)))
+                    .in_set(GameSet::Core),
             );
     }
+}
+
+fn update_run_time(time: Res<Time>, mut stats: ResMut<RunStats>) {
+    stats.time += time.delta_secs();
 }
 
 fn spawn_world(mut commands: Commands) {

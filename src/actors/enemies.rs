@@ -4,9 +4,9 @@ mod goblin_warrior;
 use crate::actors::enemies::config::EnemyConfig;
 use crate::actors::player::Player;
 use crate::asset::GameMeshAssets;
-use crate::core::health::Health;
-use crate::core::{Faction, MoveSpeed, RunEntity};
-use crate::{GameSet, GameState, RunPhase};
+use crate::core::health::{DeathMessage, Health};
+use crate::core::{Faction, MoveSpeed, RunEntity, RunStats};
+use crate::{GameSet, GameState, RunPhase, RunSet};
 use bevy::ecs::VariantDefaults;
 use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
@@ -117,9 +117,7 @@ impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            enemy_ai
-                .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing)))
-                .in_set(GameSet::Core),
+            enemy_ai.in_set(GameSet::Core).in_set(RunSet::Playing),
         );
     }
 }

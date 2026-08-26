@@ -16,10 +16,10 @@ LevelConfig (
                             count: 1,
                         )
                       ],
-                      next_batch_delay: 5.0,
+                      next_batch_delay: 60.0,
                   ),
               ],
-              max_time : 5.0
+              max_time : 60.0
           ),
           (
               batches: [
@@ -28,7 +28,7 @@ LevelConfig (
                          (
                              enemy_config: (
                                 id: GoblinWarrior,
-                                move_speed: 160.0,
+                                move_speed: 60.0,
                                 base_hp: 60.0,
                                 spec: Melee(),
                              ),

@@ -3,6 +3,7 @@ use crate::actors::enemies::{EnemyId, EnemySpawnRegister};
 use crate::asset::GameMeshAssets;
 use crate::core::MoveSpeed;
 use crate::core::health::Health;
+use avian2d::prelude::{Collider, CollisionEventsEnabled, RigidBody};
 use bevy::prelude::*;
 
 inventory::submit!(EnemySpawnRegister {
@@ -18,7 +19,11 @@ fn spawn(
 ) -> Entity {
     commands
         .spawn((
+            Name("goblin_warrior".into()),
             config.id,
+            RigidBody::Dynamic,
+            Collider::rectangle(1.0, 1.0),
+            CollisionEventsEnabled,
             Health::full(config.base_hp),
             MoveSpeed(config.move_speed),
             Mesh2d(assets.circle.clone()),

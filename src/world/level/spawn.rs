@@ -27,6 +27,7 @@ pub fn spawn_level(
         commands.insert_resource(LevelDirector {
             wave_index: 0,
             batch_index: 0,
+            all_waves_spawned: false,
             wave_timer: Timer::from_seconds(first_wave.max_time, TimerMode::Once),
             spawn_timer: Timer::from_seconds(first_batch.next_batch_delay, TimerMode::Once),
         });

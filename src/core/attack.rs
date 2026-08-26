@@ -1,5 +1,9 @@
+mod collision;
+
+use crate::core::attack::collision::CollisionAttackPlugin;
 use crate::core::RunEntity;
 use bevy::prelude::Component;
+use bevy::prelude::*;
 use serde::Deserialize;
 
 #[derive(Component, Debug, Clone, Deserialize)]
@@ -97,5 +101,13 @@ impl AttackSpec {
 
     fn default_heal_cooldown() -> f32 {
         2.0
+    }
+}
+
+pub struct AttackPlugin;
+
+impl Plugin for AttackPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(CollisionAttackPlugin);
     }
 }

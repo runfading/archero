@@ -10,6 +10,10 @@ use crate::core::CorePlugin;
 use crate::font::FontPlugin;
 use crate::ui::UiPlugin;
 use crate::world::WorldPlugin;
+use avian2d::{
+    PhysicsPlugins,
+    prelude::{Gravity, PhysicsTime},
+};
 use bevy::prelude::*;
 use serde::Deserialize;
 
@@ -21,6 +25,7 @@ pub enum GameState {
     GameLoading,
     InGame,
     GameOver,
+    GameClear,
     AssetLoadingError,
 }
 
@@ -38,6 +43,11 @@ pub enum GameSet {
     Core,
     Gameplay,
     Ui,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum RunSet {
+    Playing,
 }
 
 #[derive(Deserialize)]
@@ -73,6 +83,8 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugins(PhysicsPlugins::default())
+        .insert_resource(Gravity::ZERO)
         .configure_sets(
             Update,
             (
@@ -88,6 +100,11 @@ fn main() {
         .configure_sets(
             OnExit(GameState::InGame),
             (GameSet::Ui, GameSet::Gameplay.after(GameSet::Ui)),
+        )
+        .configure_sets(
+            Update,
+            (RunSet::Playing
+                .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing))),),
         )
         .add_plugins(AssetLoadingPlugin)
         .add_plugins(FontPlugin)
