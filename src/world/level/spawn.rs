@@ -1,6 +1,7 @@
 use crate::actors::enemies::config::EnemyConfig;
 use crate::actors::enemies::{EnemyId, spawn_enemy};
 use crate::asset::GameMeshAssets;
+use crate::core::weapon::config::WeaponConfigs;
 use crate::world::level::config::{LevelConfig, SpawnBatchConfig, WaveConfig};
 use crate::world::level::director::LevelDirector;
 use bevy::log::info;
@@ -13,6 +14,7 @@ use rand::prelude::ThreadRng;
 pub fn spawn_level(
     mut commands: &mut Commands,
     assets: &GameMeshAssets,
+    weapons: &WeaponConfigs,
     level_config: &LevelConfig,
     window: &Window,
 ) {
@@ -35,6 +37,7 @@ pub fn spawn_level(
         spawn_batch_room(
             commands,
             assets,
+            weapons,
             first_batch,
             window.width(),
             window.height(),
@@ -50,13 +53,14 @@ pub fn spawn_level(
 pub fn spawn_wave_room(
     commands: &mut Commands,
     assets: &GameMeshAssets,
+    weapons: &WeaponConfigs,
     batch_config: &WaveConfig,
     batch_index: usize,
     width: f32,
     height: f32,
 ) -> Option<Timer> {
     if let Some(batch_config) = batch_config.batches.get(batch_index) {
-        spawn_batch_room(commands, assets, batch_config, width, height);
+        spawn_batch_room(commands, assets, weapons, batch_config, width, height);
         Some(Timer::from_seconds(
             batch_config.next_batch_delay,
             TimerMode::Once,
@@ -71,6 +75,7 @@ pub fn spawn_wave_room(
 pub fn spawn_batch_room(
     commands: &mut Commands,
     assets: &GameMeshAssets,
+    weapons: &WeaponConfigs,
     batch_config: &SpawnBatchConfig,
     width: f32,
     height: f32,
@@ -80,7 +85,7 @@ pub fn spawn_batch_room(
     let mut spawn = |config: &EnemyConfig, count: u32| {
         for _ in 0..count {
             let pos = random_edge_pos(&mut rng, width, height);
-            spawn_enemy(commands, config, assets, pos)
+            spawn_enemy(commands, config, weapons, assets, pos)
         }
     };
 

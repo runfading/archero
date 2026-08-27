@@ -29,6 +29,10 @@ pub enum TargetingMode {
     Random,
 }
 
+/// 手动瞄准武器使用的世界空间方向。方向会在开火前归一化。
+#[derive(Component, Debug, Default, Copy, Clone)]
+pub struct AimDirection(pub Vec2);
+
 /// 武器开火消息
 #[derive(Message, Debug, Clone)]
 pub struct FireWeaponMessage {

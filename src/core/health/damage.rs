@@ -2,7 +2,6 @@ use crate::core::health::{HealthEffect, HealthEffectMessage};
 use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use rand::RngExt;
-use std::ops::{Add, Mul};
 
 /// 基础伤害
 ///
@@ -27,14 +26,6 @@ impl BaseDamage {
         self.0
     }
 }
-impl Add for &BaseDamage {
-    type Output = f32;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.0 + rhs.0
-    }
-}
-
 /// 最终伤害倍率（负数减伤，正数加伤）
 ///
 /// 对所有增伤应用完成后的数值进行增减
@@ -44,31 +35,6 @@ pub struct FinalDamageMultiplyingPower(pub f32);
 impl Default for FinalDamageMultiplyingPower {
     fn default() -> Self {
         FinalDamageMultiplyingPower(1.0)
-    }
-}
-
-impl FinalDamageMultiplyingPower {
-    pub fn change(&mut self, amount: f32) {
-        self.0 = (self.0 + amount).clamp(1.0, 2.5);
-    }
-
-    pub fn final_multiplier_bonus(vec: Vec<&FinalDamageMultiplyingPower>) -> f32 {
-        vec.iter().map(|d| d.0).sum::<f32>().clamp(1.0, 2.5)
-    }
-}
-
-impl Mul for &FinalDamageMultiplyingPower {
-    type Output = f32;
-    fn mul(self, rhs: Self) -> Self::Output {
-        self.0 * rhs.0
-    }
-}
-
-impl Add for &FinalDamageMultiplyingPower {
-    type Output = f32;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.0 + rhs.0
     }
 }
 
@@ -84,24 +50,6 @@ impl Default for FinalFixedDamageBonus {
     }
 }
 
-impl FinalFixedDamageBonus {
-    pub fn change(&mut self, amount: f32) {
-        self.0 += amount;
-    }
-
-    pub fn final_fixed_bonus(vec: Vec<&FinalFixedDamageBonus>) -> f32 {
-        vec.iter().map(|d| d.0).sum::<f32>()
-    }
-}
-
-impl Add for &FinalFixedDamageBonus {
-    type Output = f32;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.0 + rhs.0
-    }
-}
-
 /// 固定伤害加持（负数减伤，正数加伤）
 #[derive(Component, Clone, Copy)]
 pub struct FixedDamageBonus(pub f32);
@@ -109,24 +57,6 @@ pub struct FixedDamageBonus(pub f32);
 impl Default for FixedDamageBonus {
     fn default() -> Self {
         FixedDamageBonus(0.0)
-    }
-}
-
-impl FixedDamageBonus {
-    pub fn change(&mut self, amount: f32) {
-        self.0 += amount;
-    }
-
-    pub fn final_fixed_bonus(vec: Vec<&FixedDamageBonus>) -> f32 {
-        vec.iter().map(|d| d.0).sum::<f32>()
-    }
-}
-
-impl Add for &FixedDamageBonus {
-    type Output = f32;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.0 + rhs.0
     }
 }
 
@@ -150,29 +80,6 @@ impl DamageMultiplierBonus {
     pub fn get(&self) -> f32 {
         self.0
     }
-
-    pub fn change(&mut self, amount: f32) {
-        self.0 = (self.0 + amount).clamp(0.0, 4.5);
-    }
-
-    pub fn final_multiplier_bonus(vec: Vec<&DamageMultiplierBonus>) -> f32 {
-        vec.iter().map(|d| d.0).sum::<f32>().clamp(0.0, 4.5)
-    }
-}
-
-impl Mul for &DamageMultiplierBonus {
-    type Output = f32;
-    fn mul(self, rhs: Self) -> Self::Output {
-        self.0 * rhs.0
-    }
-}
-
-impl Add for &DamageMultiplierBonus {
-    type Output = f32;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.0 + rhs.0
-    }
 }
 
 /// 暴击配置
@@ -190,36 +97,6 @@ impl Default for CriticalStats {
         Self {
             chance: 0.05,
             damage_multiplier: 1.5,
-        }
-    }
-}
-
-impl CriticalStats {
-    /// 最终暴击率
-    ///
-    /// 范围[0.0~1.0]
-    pub fn final_critical_chance(vec: Vec<&CriticalStats>) -> f32 {
-        vec.iter().map(|c| c.chance).sum::<f32>().clamp(0.0, 1.0)
-    }
-
-    /// 最终暴击伤害
-    ///
-    /// 范围[1.1~3.5]
-    pub fn final_damage_multiplier(vec: Vec<&CriticalStats>) -> f32 {
-        vec.iter()
-            .map(|c| c.damage_multiplier)
-            .sum::<f32>()
-            .clamp(1.1, 3.5)
-    }
-}
-
-impl Add for &CriticalStats {
-    type Output = CriticalStats;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        CriticalStats {
-            chance: self.chance + rhs.chance,
-            damage_multiplier: self.damage_multiplier + rhs.damage_multiplier,
         }
     }
 }
@@ -361,12 +238,13 @@ impl DamageCalcValues {
 
     fn snapshot(self) -> DamageSnapshot {
         DamageSnapshot {
-            damage: (self.base_damage + self.fixed_damage_bonus) * self.damage_multiplier,
+            damage: (self.base_damage + self.fixed_damage_bonus)
+                * self.damage_multiplier.clamp(0.0, 4.5),
             critical: CriticalStats {
-                chance: self.critical_chance,
-                damage_multiplier: self.critical_damage_multiplier,
+                chance: self.critical_chance.clamp(0.0, 1.0),
+                damage_multiplier: self.critical_damage_multiplier.clamp(1.0, 3.5),
             },
-            final_damage_multiplying_power: self.final_damage_multiplier,
+            final_damage_multiplying_power: self.final_damage_multiplier.clamp(0.0, 2.5),
             final_fixed_damage_bonus: self.final_fixed_damage_bonus,
         }
     }
@@ -418,5 +296,51 @@ pub fn apply_damage(
             damage: *message,
             effect: HealthEffect::Damage { amount: damage },
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DamageCalcValues;
+
+    #[test]
+    fn damage_pipeline_uses_additive_flat_and_multiplicative_factor_stages() {
+        let snapshot = DamageCalcValues {
+            base_damage: 10.0,
+            fixed_damage_bonus: 2.0,
+            damage_multiplier: 1.5,
+            final_damage_multiplier: 0.8,
+            final_fixed_damage_bonus: 3.0,
+            critical_chance: 0.25,
+            critical_damage_multiplier: 2.0,
+        }
+        .snapshot();
+
+        assert_eq!(snapshot.damage, 18.0);
+        assert_eq!(snapshot.final_damage_multiplying_power, 0.8);
+        assert_eq!(snapshot.final_fixed_damage_bonus, 3.0);
+        assert_eq!(snapshot.critical.chance, 0.25);
+        assert_eq!(snapshot.critical.damage_multiplier, 2.0);
+    }
+
+    #[test]
+    fn owner_and_weapon_multipliers_are_composed_multiplicatively() {
+        let owner = DamageCalcValues {
+            base_damage: 2.0,
+            damage_multiplier: 1.2,
+            critical_damage_multiplier: 1.5,
+            ..Default::default()
+        };
+        let weapon = DamageCalcValues {
+            base_damage: 8.0,
+            damage_multiplier: 1.5,
+            critical_damage_multiplier: 1.5,
+            ..Default::default()
+        };
+
+        let snapshot = owner.merge(weapon).snapshot();
+
+        assert!((snapshot.damage - 18.0).abs() < f32::EPSILON);
+        assert_eq!(snapshot.critical.damage_multiplier, 2.0);
     }
 }

@@ -11,6 +11,7 @@ use crate::core::weapon::{WeaponId, WeaponPlugin};
 use crate::world::level::config::{LevelConfig, LevelConfigParam};
 use crate::world::level::spawn::spawn_level;
 use crate::{GameSet, GameState, RunPhase};
+use avian2d::prelude::PhysicsLayer;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
@@ -30,6 +31,14 @@ pub enum Faction {
     #[default]
     Player,
     Enemy,
+}
+
+/// 物理碰撞层。未显式配置层的单位属于第一个（默认）层。
+#[derive(PhysicsLayer, Default)]
+pub enum CollisionLayer {
+    #[default]
+    Unit,
+    Projectile,
 }
 
 #[derive(Component, Default, Debug, Clone)]
@@ -106,7 +115,13 @@ fn setup_run(
         player_config,
     );
 
-    spawn_level(&mut commands, &asset, level_config, window);
+    spawn_level(
+        &mut commands,
+        &asset,
+        weapon_asset.all(),
+        level_config,
+        window,
+    );
 }
 
 /// 清理游戏运行状态：

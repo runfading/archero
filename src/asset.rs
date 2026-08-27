@@ -34,7 +34,10 @@ impl GameAssets {
         config.get(&self.level_001_config)
     }
 
-    fn weapon_configs<'a>(&self, config: &'a Assets<WeaponConfigs>) -> Option<&'a WeaponConfigs> {
+    pub fn weapon_configs<'a>(
+        &self,
+        config: &'a Assets<WeaponConfigs>,
+    ) -> Option<&'a WeaponConfigs> {
         config.get(&self.weapon_configs)
     }
 
@@ -44,8 +47,7 @@ impl GameAssets {
         config: &'a Assets<WeaponConfigs>,
     ) -> &'a WeaponConfig {
         self.weapon_configs(config)
-            .map(|w| w.get(weapon_id))
-            .flatten()
+            .and_then(|weapons| weapons.get(weapon_id))
             .expect("没有找到武器配置")
     }
 }

@@ -2,11 +2,11 @@ use crate::asset::GameMeshAssets;
 use crate::core::health::Health;
 use crate::core::health::damage::{DamageMessage, DamageSnapshot};
 use crate::core::weapon::FireWeaponMessage;
-use crate::core::{Faction, RunEntity};
+use crate::core::{CollisionLayer, Faction, RunEntity};
 use crate::{GameSet, RunSet};
 use avian2d::prelude::{
-    Collider, CollisionEventsEnabled, CollisionStart, LinearVelocity, Position, RigidBody, Sensor,
-    SweptCcd,
+    Collider, CollisionEventsEnabled, CollisionLayers, CollisionStart, LinearVelocity, Position,
+    RigidBody, Sensor, SweptCcd,
 };
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -19,14 +19,40 @@ pub struct Projectile {
     pub owner: Entity,
     /// 所属武器
     pub owner_weapon: Entity,
-    /// 穿透数量
-    pub pierce: u32,
+    /// 本弹丸还可以命中的目标数量。普通弹丸为 1，每一点穿透额外增加 1。
+    pub remaining_hits: u32,
     /// 反弹次数
     pub ricochet: u32,
     /// 存活时间
     pub lifetime: f32,
+    /// 剩余可飞行距离。
+    pub distance_remaining: f32,
     /// 已命中实体
     pub hit: Vec<Entity>,
+    /// 已耗尽命中次数。实体销毁是延迟命令，因此需要立即状态阻止同帧多次命中。
+    pub consumed: bool,
+}
+
+pub struct ProjectileSpawn {
+    pub faction: Faction,
+    pub origin: Vec2,
+    pub direction: Vec2,
+    pub speed: f32,
+    pub range: f32,
+    pub pierce: u32,
+}
+
+impl Projectile {
+    fn try_register_hit(&mut self, target: Entity) -> bool {
+        if self.consumed || self.hit.contains(&target) {
+            return false;
+        }
+
+        self.hit.push(target);
+        self.remaining_hits = self.remaining_hits.saturating_sub(1);
+        self.consumed = self.remaining_hits == 0;
+        true
+    }
 }
 
 pub struct ProjectilePlugin;
@@ -45,13 +71,18 @@ impl Plugin for ProjectilePlugin {
 pub fn spawn_projectile(
     commands: &mut Commands,
     fire: &FireWeaponMessage,
-    faction: Faction,
-    origin: Vec2,
-    dir: Vec2,
-    speed: f32,
-    pierce: u32,
+    spawn: ProjectileSpawn,
     assets: &GameMeshAssets,
 ) -> Option<Entity> {
+    let ProjectileSpawn {
+        faction,
+        origin,
+        direction,
+        speed,
+        range,
+        pierce,
+    } = spawn;
+
     if !origin.is_finite() {
         warn!("拒绝生成位置非法的弹丸: {origin:?}");
         return None;
@@ -62,12 +93,17 @@ pub fn spawn_projectile(
         return None;
     }
 
-    let Some(dir) = dir.try_normalize() else {
-        warn!("拒绝生成方向非法的弹丸: {dir:?}");
+    if !range.is_finite() || range <= 0.0 {
+        warn!("拒绝生成射程非法的弹丸: {range}");
+        return None;
+    }
+
+    let Some(direction) = direction.try_normalize() else {
+        warn!("拒绝生成方向非法的弹丸: {direction:?}");
         return None;
     };
 
-    let angle = dir.to_angle();
+    let angle = direction.to_angle();
 
     let mat = if faction == Faction::Player {
         assets.mat_arrow.clone()
@@ -81,15 +117,19 @@ pub fn spawn_projectile(
             Projectile {
                 owner: fire.owner,
                 owner_weapon: fire.weapon,
-                pierce,
+                remaining_hits: pierce.saturating_add(1),
                 ricochet: 0,
                 lifetime: 10.0,
+                distance_remaining: range,
                 hit: vec![],
+                consumed: false,
             },
             // 碰撞
             RigidBody::Kinematic,
-            LinearVelocity(dir * speed),
+            LinearVelocity(direction * speed),
             Collider::circle(0.5),
+            // 弹丸只检测单位层，双方弹丸之间不会形成碰撞对。
+            CollisionLayers::new(CollisionLayer::Projectile, CollisionLayer::Unit),
             Sensor,
             CollisionEventsEnabled,
             SweptCcd::LINEAR,
@@ -110,16 +150,19 @@ pub fn spawn_projectile(
 fn update_lifetime(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Projectile, &Position)>,
+    mut query: Query<(Entity, &mut Projectile, &Position, &LinearVelocity)>,
     window: Single<&Window, With<PrimaryWindow>>,
 ) {
-    for (entity, mut projectile, position) in &mut query {
+    for (entity, mut projectile, position, velocity) in &mut query {
         let dt = time.delta_secs();
         // 存活时间减少
         projectile.lifetime -= dt;
+        projectile.distance_remaining -= velocity.0.length() * dt;
 
         let pos = position.0;
-        if projectile.lifetime <= 0.0
+        if projectile.consumed
+            || projectile.lifetime <= 0.0
+            || projectile.distance_remaining <= 0.0
             || pos.x.abs() > window.width() / 2.0 + 40.0
             || pos.y.abs() > window.height() / 2.0 + 40.0
         {
@@ -158,7 +201,7 @@ fn on_projectile_collision(
         return;
     }
 
-    if projectile.hit.contains(&target_entity) {
+    if !projectile.try_register_hit(target_entity) {
         return;
     }
 
@@ -170,10 +213,61 @@ fn on_projectile_collision(
         snapshot: *snapshot,
     });
 
-    projectile.hit.push(target_entity);
-    if projectile.pierce == 0 {
+    if projectile.consumed {
         commands.entity(projectile_entity).despawn();
-    } else {
-        projectile.pierce -= 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Projectile;
+    use crate::core::CollisionLayer;
+    use avian2d::prelude::CollisionLayers;
+    use bevy::prelude::Entity;
+
+    fn projectile(remaining_hits: u32) -> Projectile {
+        Projectile {
+            owner: Entity::PLACEHOLDER,
+            owner_weapon: Entity::PLACEHOLDER,
+            remaining_hits,
+            ricochet: 0,
+            lifetime: 1.0,
+            distance_remaining: 100.0,
+            hit: Vec::new(),
+            consumed: false,
+        }
+    }
+
+    #[test]
+    fn non_piercing_projectile_is_consumed_by_first_unique_target() {
+        let mut projectile = projectile(1);
+        let first = Entity::from_bits(1);
+        let second = Entity::from_bits(2);
+
+        assert!(projectile.try_register_hit(first));
+        assert!(projectile.consumed);
+        assert!(!projectile.try_register_hit(second));
+    }
+
+    #[test]
+    fn piercing_projectile_hits_each_target_at_most_once() {
+        let mut projectile = projectile(2);
+        let first = Entity::from_bits(1);
+        let second = Entity::from_bits(2);
+
+        assert!(projectile.try_register_hit(first));
+        assert!(!projectile.try_register_hit(first));
+        assert!(!projectile.consumed);
+        assert!(projectile.try_register_hit(second));
+        assert!(projectile.consumed);
+    }
+
+    #[test]
+    fn projectile_layers_hit_units_but_ignore_other_projectiles() {
+        let projectile = CollisionLayers::new(CollisionLayer::Projectile, CollisionLayer::Unit);
+        let unit = CollisionLayers::default();
+
+        assert!(projectile.interacts_with(unit));
+        assert!(!projectile.interacts_with(projectile));
     }
 }

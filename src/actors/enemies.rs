@@ -6,6 +6,7 @@ use crate::actors::player::Player;
 use crate::asset::GameMeshAssets;
 use crate::core::attack::Knockback;
 use crate::core::health::{DeathMessage, Health};
+use crate::core::weapon::config::WeaponConfigs;
 use crate::core::{Faction, MoveSpeed, RunEntity, RunStats};
 use crate::{GameSet, GameState, RunPhase, RunSet};
 use avian2d::prelude::{LinearVelocity, Position};
@@ -76,7 +77,8 @@ pub enum EnemyId {
 }
 
 /// 敌人生成函数。每种敌人可以生成不同的 Bundle，但都直接将实体写入 World。
-pub type SpawnEnemyFn = fn(&mut Commands, &EnemyConfig, &GameMeshAssets, Vec2) -> Entity;
+pub type SpawnEnemyFn =
+    fn(&mut Commands, &EnemyConfig, &WeaponConfigs, &GameMeshAssets, Vec2) -> Entity;
 
 /// 路由注册
 pub struct EnemySpawnRegister {
@@ -93,6 +95,7 @@ static SPAWN_ENEMY_MAP: OnceLock<HashMap<EnemyId, SpawnEnemyFn>> = OnceLock::new
 pub fn spawn_enemy(
     commands: &mut Commands,
     config: &EnemyConfig,
+    weapons: &WeaponConfigs,
     assets: &GameMeshAssets,
     positon: Vec2,
 ) {
@@ -110,7 +113,7 @@ pub fn spawn_enemy(
         return;
     };
 
-    spawn_fn(commands, config, assets, positon);
+    spawn_fn(commands, config, weapons, assets, positon);
 }
 
 pub struct EnemyPlugin;

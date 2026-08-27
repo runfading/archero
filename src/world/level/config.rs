@@ -47,3 +47,37 @@ impl LevelConfigParam<'_> {
             .expect("没有找到关卡配置")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::LevelConfig;
+    use crate::core::weapon::WeaponId;
+    use crate::core::weapon::config::WeaponConfigs;
+
+    #[test]
+    fn every_level_enemy_weapon_resolves_to_a_weapon_config() {
+        let level: LevelConfig =
+            ron::from_str(include_str!("../../../assets/levels/level_001.level.ron"))
+                .expect("关卡配置应该可以反序列化");
+        let weapons: WeaponConfigs = ron::from_str(include_str!(
+            "../../../assets/config/default_weapon.weapon.ron"
+        ))
+        .expect("武器配置应该可以反序列化");
+
+        let enemies = level
+            .waves
+            .iter()
+            .flat_map(|wave| &wave.batches)
+            .flat_map(|batch| &batch.config);
+
+        for enemy in enemies {
+            assert_eq!(enemy.enemy_config.weapon, WeaponId::Bow);
+            assert!(
+                weapons.get(enemy.enemy_config.weapon).is_some(),
+                "敌人 {:?} 引用了不存在的武器 {:?}",
+                enemy.enemy_config.id,
+                enemy.enemy_config.weapon
+            );
+        }
+    }
+}

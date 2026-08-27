@@ -8,8 +8,37 @@ use serde::Deserialize;
 
 /// 应用碰撞伤害
 #[derive(Component, Deserialize, Default, Debug, Clone)]
-#[require(ContactKnockback)]
+#[require(ContactKnockback, ContactDamageCooldown, ContactDamageRuntime)]
 pub struct ContactDamage(pub f32);
+
+/// 同一攻击者两次接触伤害之间的最短间隔。
+#[derive(Component, Deserialize, Debug, Clone, Copy)]
+pub struct ContactDamageCooldown(pub f32);
+
+impl Default for ContactDamageCooldown {
+    fn default() -> Self {
+        Self(0.5)
+    }
+}
+
+#[derive(Component, Debug, Clone, Default)]
+pub struct ContactDamageRuntime {
+    next_allowed_at: f32,
+}
+
+impl ContactDamageRuntime {
+    fn try_begin(&mut self, now: f32, cooldown: f32) -> bool {
+        if !now.is_finite() || !cooldown.is_finite() || cooldown < 0.0 {
+            return false;
+        }
+        if now < self.next_allowed_at {
+            return false;
+        }
+
+        self.next_allowed_at = now + cooldown;
+        true
+    }
+}
 
 /// 接触伤害命中敌对单位时的弹开参数。
 ///
@@ -35,7 +64,14 @@ impl Default for ContactKnockback {
 pub fn on_contact_damage(
     event: On<CollisionStart>,
     mut commands: Commands,
-    attackers: Query<(&Faction, &ContactDamage, &ContactKnockback)>,
+    time: Res<Time>,
+    mut attackers: Query<(
+        &Faction,
+        &ContactDamage,
+        &ContactDamageCooldown,
+        &mut ContactDamageRuntime,
+        &ContactKnockback,
+    )>,
     targets: Query<&Faction, With<Health>>,
     positions: Query<&Position>,
     mut velocities: Query<&mut LinearVelocity>,
@@ -45,7 +81,8 @@ pub fn on_contact_damage(
     let source = event.collider1;
     let target = event.collider2;
 
-    let Ok((source_faction, damage, knockback)) = attackers.get(source) else {
+    let Ok((source_faction, damage, cooldown, mut runtime, knockback)) = attackers.get_mut(source)
+    else {
         return;
     };
     let Ok(target_faction) = targets.get(target) else {
@@ -53,6 +90,10 @@ pub fn on_contact_damage(
     };
 
     if source_faction == target_faction || !damage.0.is_finite() || damage.0 <= 0.0 {
+        return;
+    }
+
+    if !runtime.try_begin(time.elapsed_secs(), cooldown.0) {
         return;
     }
 
@@ -99,4 +140,18 @@ pub fn on_contact_damage(
     commands
         .entity(target)
         .insert(Knockback::new(knockback.duration));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ContactDamageRuntime;
+
+    #[test]
+    fn contact_damage_cooldown_rejects_rapid_recontacts() {
+        let mut runtime = ContactDamageRuntime::default();
+
+        assert!(runtime.try_begin(1.0, 0.5));
+        assert!(!runtime.try_begin(1.49, 0.5));
+        assert!(runtime.try_begin(1.5, 0.5));
+    }
 }

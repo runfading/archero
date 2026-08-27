@@ -35,6 +35,12 @@ pub struct WeaponConfigsParam<'w> {
 }
 
 impl WeaponConfigsParam<'_> {
+    pub fn all(&self) -> &WeaponConfigs {
+        self.game_assets
+            .weapon_configs(&self.configs)
+            .expect("没有找到武器配置集合")
+    }
+
     pub fn get(&self, id: WeaponId) -> &WeaponConfig {
         self.game_assets.get_weapon_config(id, &self.configs)
     }

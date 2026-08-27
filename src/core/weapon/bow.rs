@@ -1,15 +1,16 @@
-use crate::actors::enemies::Enemy;
 use crate::asset::GameMeshAssets;
 use crate::core::Faction;
-use crate::core::attack::projectile_attack::spawn_projectile;
+use crate::core::attack::projectile_attack::{ProjectileSpawn, spawn_projectile};
 use crate::core::attack::{AttackSpec, CombatEffect, ProjectileAttackProperty};
+use crate::core::health::Health;
 use crate::core::health::damage::{BaseDamage, CalDamageSnapshot, DamageMultiplierBonus};
 use crate::core::weapon::config::WeaponConfig;
-use crate::core::weapon::{FireWeaponMessage, WeaponSet};
+use crate::core::weapon::{AimDirection, FireWeaponMessage, TargetingMode, WeaponSet};
 use crate::{GameSet, RunSet};
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use bevy::scene::{bsn, template_value};
+use rand::RngExt;
 
 /// 箭矢从单位中心沿发射方向向外偏移，避免出生时与发射者重叠。
 const PROJECTILE_SPAWN_OFFSET: f32 = 20.0;
@@ -49,15 +50,18 @@ pub struct BowRuntime {
     /// 下次允许攻击的计时器
     pub cooldown: Timer,
 
-    /// 当前剩余箭矢
-    pub current_ammo: Option<u32>,
+    /// 冷却完成但没有目标时，限制空间查询频率。
+    pub target_retry: Timer,
 }
 
 impl BowRuntime {
     pub fn new(attack_interval: f32) -> Self {
+        let mut target_retry = Timer::from_seconds(0.1, TimerMode::Once);
+        target_retry.finish();
+
         Self {
             cooldown: Timer::from_seconds(attack_interval.max(0.0), TimerMode::Once),
-            current_ammo: None,
+            target_retry,
         }
     }
 }
@@ -110,12 +114,29 @@ pub fn spawn_bow(commands: &mut Commands, owner: Entity, config: &WeaponConfig) 
         }
     };
 
+    if !projectile.range.is_finite() || projectile.range <= 0.0 {
+        warn!("弓箭射程非法: {}", projectile.range);
+        return;
+    }
+    if !projectile.cooldown.is_finite() || projectile.cooldown < 0.0 {
+        warn!("弓箭冷却时间非法: {}", projectile.cooldown);
+        return;
+    }
+    if !projectile.projectile_speed.is_finite() || projectile.projectile_speed <= 0.0 {
+        warn!("弓箭弹丸速度非法: {}", projectile.projectile_speed);
+        return;
+    }
+    if !config.base_multiplying_power.is_finite() || config.base_multiplying_power < 0.0 {
+        warn!("弓箭伤害倍率非法: {}", config.base_multiplying_power);
+        return;
+    }
+
     let runtime = BowRuntime::new(projectile.cooldown);
     let weapon = commands
         .spawn_scene(bsn! {
             #bow
             template_value(config.id)
-            template_value(config.targeting.clone())
+            template_value(config.targeting)
             template_value(projectile)
             template_value(BowProperty::default())
             template_value(runtime)
@@ -137,63 +158,92 @@ fn request_weapon_fire(
         // 武器entity
         Entity,
         &ChildOf,
+        &TargetingMode,
         &ProjectileAttackProperty,
         &mut BowRuntime,
     )>,
-    owner_positions: Query<&Position>,
+    owners: Query<(&Position, &Faction, Option<&AimDirection>)>,
     spatial_query: SpatialQuery,
-    // 先过滤掉敌人，后面再想办法
-    colliders: Query<(&Collider, &Position, &Rotation), With<Enemy>>,
+    targets: Query<(&Collider, &Position, &Rotation, &Faction, &Health)>,
     mut writer: MessageWriter<FireWeaponMessage>,
 ) {
-    for (weapon, child_of, projectile, mut runtime) in &mut cooldown_query {
+    for (weapon, child_of, targeting, projectile, mut runtime) in &mut cooldown_query {
         // 当前查询匹配到的子实体，也就是武器
 
         // weapon 的直接父实体，也就是当前的 owner
         let owner = child_of.parent();
 
         runtime.cooldown.tick(time.delta());
+        runtime.target_retry.tick(time.delta());
 
-        if !runtime.cooldown.is_finished() {
+        if !runtime.cooldown.is_finished() || !runtime.target_retry.is_finished() {
             continue;
         }
 
         // 以 Avian 的物理位置为权威坐标，避免读取尚未传播的 GlobalTransform。
-        let Ok(owner_position) = owner_positions.get(owner) else {
-            warn!("武器所有者缺少 Position: {owner:?}");
+        let Ok((owner_position, owner_faction, aim_direction)) = owners.get(owner) else {
+            warn!("武器所有者缺少 Position 或 Faction: {owner:?}");
+            runtime.target_retry.reset();
             continue;
         };
         let origin = owner_position.0;
-        let nearest_target = find_nearest_target(
+        let fire_solution = match targeting {
+            TargetingMode::Nearest | TargetingMode::LowestHealth => find_target(
+                TargetSearch {
+                    origin,
+                    radius: projectile.range,
+                    owner,
+                    weapon,
+                    owner_faction: *owner_faction,
+                    targeting: *targeting,
+                },
+                &spatial_query,
+                &targets,
+            )
+            .and_then(|(entity, point, _)| {
+                (point - origin)
+                    .try_normalize()
+                    .map(|direction| (direction, Some(entity)))
+            }),
+            TargetingMode::ManualDirection => aim_direction
+                .and_then(|aim| aim.0.try_normalize())
+                .map(|direction| (direction, None)),
+            TargetingMode::Random => {
+                let angle = rand::rng().random_range(0.0..std::f32::consts::TAU);
+                Some((Vec2::from_angle(angle), None))
+            }
+        };
+
+        let Some((direction, target)) = fire_solution else {
+            runtime.target_retry.reset();
+            continue;
+        };
+
+        writer.write(FireWeaponMessage {
+            owner,
+            weapon,
             origin,
-            projectile.range,
-            vec![owner, weapon],
-            &spatial_query,
-            &colliders,
-        );
-
-        if let Some((target_entity, target, _distance)) = nearest_target {
-            let Some(direction) = (target - origin).try_normalize() else {
-                // 玩家和目标完全重合，本次不开火
-                continue;
-            };
-
-            writer.write(FireWeaponMessage {
-                owner,
-                weapon,
-                origin,
-                direction,
-                target: Some(target_entity),
-            });
-            runtime.cooldown.reset();
-        }
+            direction,
+            target,
+        });
+        runtime.cooldown.reset();
     }
 }
 
-/// 在指定范围内查找距离 `origin` 最近的敌人。
+/// 搜索参数
+struct TargetSearch {
+    origin: Vec2,
+    radius: f32,
+    owner: Entity,
+    weapon: Entity,
+    owner_faction: Faction,
+    targeting: TargetingMode,
+}
+
+/// 在指定范围内按目标选择模式查找敌对单位。
 ///
 /// 该函数首先查询范围内的碰撞体，
-/// 然后计算 `origin` 到每个碰撞体表面的最近点，并选择距离最短的目标。
+/// 然后计算 `origin` 到每个碰撞体表面的最近点，并按距离或生命比例选择目标。
 ///
 /// # 参数
 ///
@@ -214,13 +264,20 @@ fn request_weapon_fire(
 /// 如果范围内没有符合条件的实体，则返回 `None`。
 ///
 /// 没有对应碰撞体、位置或旋转数据的实体会被忽略。
-fn find_nearest_target(
-    origin: Vec2,
-    radius: f32,
-    excluded: Vec<Entity>,
+fn find_target(
+    search: TargetSearch,
     spatial_query: &SpatialQuery,
-    colliders: &Query<(&Collider, &Position, &Rotation), With<Enemy>>,
+    targets: &Query<(&Collider, &Position, &Rotation, &Faction, &Health)>,
 ) -> Option<(Entity, Vec2, f32)> {
+    let TargetSearch {
+        origin,
+        radius,
+        owner,
+        weapon,
+        owner_faction,
+        targeting,
+    } = search;
+
     spatial_query
         .shape_intersections(
             &Collider::circle(radius),
@@ -229,19 +286,27 @@ fn find_nearest_target(
             &SpatialQueryFilter::default(),
         )
         .into_iter()
-        .filter(|entity| !excluded.contains(entity))
+        .filter(|entity| *entity != owner && *entity != weapon)
         .filter_map(|entity| {
-            let (collider, position, rotation) = colliders.get(entity).ok()?;
+            let (collider, position, rotation, faction, health) = targets.get(entity).ok()?;
+            if *faction == owner_faction || health.current <= 0.0 {
+                return None;
+            }
 
             let (projection, _is_inside) =
                 collider.project_point(*position, *rotation, origin, true);
 
             let distance_squared = origin.distance_squared(projection);
 
-            Some((entity, projection, distance_squared))
+            Some((entity, projection, distance_squared, health.ratio()))
         })
-        .min_by(|a, b| a.2.total_cmp(&b.2))
-        .map(|(entity, projection, distance_squared)| (entity, projection, distance_squared.sqrt()))
+        .min_by(|a, b| match targeting {
+            TargetingMode::LowestHealth => a.3.total_cmp(&b.3).then_with(|| a.2.total_cmp(&b.2)),
+            _ => a.2.total_cmp(&b.2),
+        })
+        .map(|(entity, projection, distance_squared, _)| {
+            (entity, projection, distance_squared.sqrt())
+        })
 }
 
 fn attack(
@@ -265,11 +330,14 @@ fn attack(
             let Some(projectile_entity) = spawn_projectile(
                 &mut commands,
                 fire,
-                message.faction,
-                origin,
-                direction,
-                projectile.projectile_speed,
-                bow.pierce,
+                ProjectileSpawn {
+                    faction: message.faction,
+                    origin,
+                    direction,
+                    speed: projectile.projectile_speed,
+                    range: projectile.range,
+                    pierce: bow.pierce,
+                },
                 &assets,
             ) else {
                 continue;
@@ -284,6 +352,9 @@ fn attack(
     }
 }
 
+/// 弹道方向
+///
+/// 根据数量与扩散度生成本次弹道实体
 fn projectile_directions(
     center: Vec2,
     count: u32,

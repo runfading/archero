@@ -1,5 +1,6 @@
 use crate::actors::enemies::{Enemy, EnemyId, spawn_enemy};
 use crate::asset::{GameAssets, GameMeshAssets};
+use crate::core::weapon::config::WeaponConfigsParam;
 use crate::world::level::config::{LevelConfig, SpawnBatchConfig, WaveConfig};
 use crate::world::level::director;
 use crate::world::level::spawn::spawn_wave_room;
@@ -45,6 +46,7 @@ fn timer_level_game_loop(
     level_config: Res<Assets<LevelConfig>>,
     game_assets: Res<GameAssets>,
     game_mesh_assets: Res<GameMeshAssets>,
+    weapon_configs: WeaponConfigsParam,
     window: Query<&Window, With<PrimaryWindow>>,
 ) {
     let Some(mut director) = director.as_mut() else {
@@ -77,6 +79,7 @@ fn timer_level_game_loop(
             let spawn_timer = spawn_wave_room(
                 &mut commands,
                 &game_mesh_assets,
+                weapon_configs.all(),
                 wave_config,
                 director.batch_index,
                 window.width(),
@@ -112,6 +115,7 @@ fn timer_level_game_loop(
             spawn_wave_room(
                 &mut commands,
                 &game_mesh_assets,
+                weapon_configs.all(),
                 wave_config,
                 0,
                 window.width(),
