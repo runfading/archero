@@ -13,10 +13,14 @@ impl Health {
         Self { current: max, max }
     }
 
-    // /// 当前血量百分比
-    // pub fn ratio(self) -> f32 {
-    //     (self.current / self.max).clamp(0.0, 1.0)
-    // }
+    /// 当前血量百分比。
+    pub fn ratio(self) -> f32 {
+        if !self.current.is_finite() || !self.max.is_finite() || self.max <= 0.0 {
+            return 0.0;
+        }
+
+        (self.current / self.max).clamp(0.0, 1.0)
+    }
 
     /// 扣减血量
     pub fn damage(&mut self, amount: f32) -> f32 {
@@ -27,8 +31,26 @@ impl Health {
 
     /// 治疗
     pub fn heal(&mut self, amount: f32) -> f32 {
-        self.current = (self.current + amount).max(self.max);
+        self.current = (self.current + amount).min(self.max);
         self.current
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Health;
+
+    #[test]
+    fn healing_is_capped_at_max_health() {
+        let mut health = Health {
+            current: 40.0,
+            max: 60.0,
+        };
+
+        health.heal(30.0);
+
+        assert_eq!(health.current, 60.0);
+        assert_eq!(health.ratio(), 1.0);
     }
 }
 
@@ -89,8 +111,8 @@ fn apply_health_effects(
                 health.damage(amount);
 
                 info!(
-                    "{}对{}造成伤害{}点",
-                    message.source_name, message.target_name, health.current
+                    "{}对{}造成伤害{}点,剩余{}",
+                    message.source_name, message.target_name, amount, health.current
                 );
                 if was_alive && health.current <= 0.0 {
                     /// 生命值归零发送死亡消息
@@ -108,11 +130,11 @@ fn apply_health_effects(
 
                 // 这里采用“死亡后不能被普通治疗”的规则。
                 if health.current > 0.0 {
-                    info!(
-                        "{}对{}造成回复{}点",
-                        message.source_name, message.target_name, health.current
-                    );
                     health.heal(amount);
+                    info!(
+                        "{}对{}回复{}点,当前{}",
+                        message.source_name, message.target_name, amount, health.current
+                    );
                 }
             }
         }

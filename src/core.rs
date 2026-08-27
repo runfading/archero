@@ -6,6 +6,7 @@ use crate::asset::{GameAssets, GameMeshAssets};
 use crate::core::attack::AttackPlugin;
 use crate::core::health::HealthPlugin;
 use crate::core::pause::PausePlugin;
+use crate::core::weapon::WeaponPlugin;
 use crate::world::level::config::LevelConfig;
 use crate::world::level::spawn::spawn_level;
 use crate::{GameSet, GameState, RunPhase};
@@ -14,15 +15,18 @@ use bevy::window::PrimaryWindow;
 
 pub mod attack;
 pub mod health;
+mod hit;
 mod pause;
+pub mod weapon;
 
 /// 局内单位标记
 #[derive(Component, Default, Copy, Clone)]
 pub struct RunEntity;
 
 /// 单位阵营
-#[derive(Component, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Component, Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Faction {
+    #[default]
     Player,
     Enemy,
 }
@@ -45,6 +49,7 @@ impl Plugin for CorePlugin {
             .add_plugins(PausePlugin)
             .add_plugins(ActorsPlugin)
             .add_plugins(AttackPlugin)
+            .add_plugins(WeaponPlugin)
             .add_plugins(HealthPlugin)
             .add_systems(Startup, crate::spawn_world)
             .add_systems(

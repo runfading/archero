@@ -2,10 +2,15 @@ pub mod config;
 
 use crate::actors::player::config::PlayerConfig;
 use crate::asset::GameMeshAssets;
+use crate::core::attack::contact_attack::Knockback;
+use crate::core::attack::{AttackSpec, CombatEffect};
 use crate::core::health::{DeathMessage, Health};
+use crate::core::weapon::WeaponId;
+use crate::core::weapon::bow::spawn_bow;
+use crate::core::weapon::config::WeaponConfig;
 use crate::core::{Faction, RunEntity, RunStats};
 use crate::{GameSet, GameState, RunPhase, RunSet};
-use avian2d::prelude::{Collider, CollisionEventsEnabled, RigidBody};
+use avian2d::prelude::{Collider, CollisionEventsEnabled, LinearVelocity, LockedAxes, RigidBody};
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
@@ -39,7 +44,6 @@ impl Action {
 #[derive(Component, Debug, Default, Clone)]
 #[require(RunEntity, InputMap<Action> = Player::default_input_map(), Faction::Player)]
 pub struct Player {
-    pub attack_timer: f32,
     pub move_speed: f32,
     pub level: u32,
     pub xp: u32,
@@ -47,6 +51,8 @@ pub struct Player {
 }
 
 impl Player {
+    pub const XP_PER_KILL: u32 = 1;
+
     fn default_input_map() -> InputMap<Action> {
         use Action::*;
         let mut input_map = InputMap::default();
@@ -79,12 +85,27 @@ impl Player {
 
     fn initialize(player_config: &PlayerConfig) -> Self {
         Self {
-            attack_timer: player_config.attack_interval,
             move_speed: player_config.move_speed,
             level: 1,
             xp: 0,
             xp_to_next: 10,
         }
+    }
+
+    /// 增加经验并处理连续升级，返回本次提升的等级数。
+    pub fn gain_xp(&mut self, amount: u32) -> u32 {
+        self.xp = self.xp.saturating_add(amount);
+        self.xp_to_next = self.xp_to_next.max(1);
+
+        let mut levels_gained = 0;
+        while self.xp >= self.xp_to_next {
+            self.xp -= self.xp_to_next;
+            self.level = self.level.saturating_add(1);
+            self.xp_to_next = self.xp_to_next.saturating_add(5);
+            levels_gained += 1;
+        }
+
+        levels_gained
     }
 }
 
@@ -101,15 +122,13 @@ impl Plugin for PlayerPlugin {
 }
 
 fn movement(
-    time: Res<Time>,
-    mut query: Query<(&ActionState<Action>, &mut Transform, &Player), With<Player>>,
+    mut query: Query<
+        (&ActionState<Action>, &mut LinearVelocity, &Player),
+        (With<Player>, Without<Knockback>),
+    >,
 ) {
-    let (action_state, mut transform, player) = match query.single_mut() {
-        Ok(query) => query,
-        Err(err) => {
-            error!("更新玩家坐标有问题：{}", err);
-            return;
-        }
+    let Ok((action_state, mut velocity, player)) = query.single_mut() else {
+        return;
     };
 
     let direction = Action::DIRECTIONS
@@ -119,7 +138,7 @@ fn movement(
         .fold(Vec2::ZERO, |sum, direction| sum + *direction)
         .normalize_or_zero();
 
-    transform.translation += (direction * player.move_speed * time.delta_secs()).extend(0.0);
+    velocity.0 = direction * player.move_speed;
 }
 
 pub fn spawn_player(
@@ -128,18 +147,36 @@ pub fn spawn_player(
     player_config: &PlayerConfig,
 ) {
     let player = Player::initialize(player_config);
-    commands
+
+    let player = commands
         .spawn_scene(bsn! {
             #Player
             template_value(player)
         })
         .insert((
             Health::full(player_config.base_hp),
+            // 碰撞
             RigidBody::Dynamic,
-            Collider::rectangle(1.0, 1.0),
+            Collider::circle(1.0),
             CollisionEventsEnabled,
+            LockedAxes::ROTATION_LOCKED,
             Mesh2d(assets.circle.clone()),
             MeshMaterial2d(assets.mat_player.clone()),
             Transform::from_xyz(0.0, 0.0, 1.).with_scale(Vec3::splat(14.0)),
-        ));
+        ))
+        .id();
+    spawn_bow(
+        commands,
+        player,
+        &WeaponConfig {
+            id: WeaponId::Bow,
+            targeting: Default::default(),
+            attack: AttackSpec::Projectile {
+                range: 560.0,
+                cooldown: 1.5,
+                projectile_speed: 60.0,
+                effect: CombatEffect::Damage { amount: 10.0 },
+            },
+        },
+    )
 }

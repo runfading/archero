@@ -1,8 +1,8 @@
 use crate::actors::enemies::Enemy;
 use crate::actors::player::Player;
 use crate::core::RunStats;
-use crate::core::health::{DeathMessage, Health};
-use crate::{GameSet, GameState, RunPhase, RunSet};
+use crate::core::health::DeathMessage;
+use crate::{GameSet, GameState, RunSet};
 use bevy::prelude::*;
 
 pub struct DeathPlugin;
@@ -18,11 +18,12 @@ fn death(
     mut deaths: MessageReader<DeathMessage>,
     mut stats: ResMut<RunStats>,
     enemies: Query<(), With<Enemy>>,
-    players: Query<(), With<Player>>,
+    mut players: Query<&mut Player>,
     query: Query<&Name>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     for death in deaths.read() {
+        let player_died = players.contains(death.entity);
         let kill_name = if let Ok(name) = query.get(death.killer) {
             name.to_string()
         } else {
@@ -39,10 +40,13 @@ fn death(
         if enemies.contains(death.entity) {
             stats.kills += 1;
             stats.gold += 1;
+            if let Ok(mut player) = players.single_mut() {
+                player.gain_xp(Player::XP_PER_KILL);
+            }
             commands.entity(death.entity).despawn();
         }
 
-        if players.contains(death.entity) {
+        if player_died {
             next_state.set(GameState::GameOver);
             continue;
         }

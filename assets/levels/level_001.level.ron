@@ -12,6 +12,7 @@ LevelConfig (
                                move_speed: 60.0,
                                base_hp: 60.0,
                                spec: Melee(),
+                               concat_damage: ContactDamage(1.0),
                             ),
                             count: 1,
                         )

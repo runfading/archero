@@ -4,9 +4,11 @@ mod goblin_warrior;
 use crate::actors::enemies::config::EnemyConfig;
 use crate::actors::player::Player;
 use crate::asset::GameMeshAssets;
+use crate::core::attack::contact_attack::Knockback;
 use crate::core::health::{DeathMessage, Health};
 use crate::core::{Faction, MoveSpeed, RunEntity, RunStats};
 use crate::{GameSet, GameState, RunPhase, RunSet};
+use avian2d::prelude::{LinearVelocity, Position};
 use bevy::ecs::VariantDefaults;
 use bevy::ecs::query::QuerySingleError;
 use bevy::prelude::*;
@@ -123,43 +125,14 @@ impl Plugin for EnemyPlugin {
 }
 
 fn enemy_ai(
-    _commands: Commands,
-    time: Res<Time>,
-    _assets: Res<GameMeshAssets>,
-    player_pos: Query<&Transform, With<Player>>,
-    mut enemies: Query<(&mut MoveSpeed, &mut Transform), (With<Enemy>, Without<Player>)>,
+    player_pos: Single<&Position, With<Player>>,
+    mut enemies: Query<
+        (&MoveSpeed, &Position, &mut LinearVelocity),
+        (With<Enemy>, Without<Player>, Without<Knockback>),
+    >,
 ) {
-    let player_pos = match player_pos.single() {
-        Ok(player_pos) => player_pos.translation.truncate(),
-        Err(err) => {
-            error!("玩家唯一性有问题:{}", err);
-            return;
-        }
-    };
-
     // enemy 移动
-    for (mut speed, mut transform) in &mut enemies {
-        // 2d游戏 v3 => v2
-        let pos = transform.translation.truncate();
-
-        // 距离
-        let to_player = player_pos - pos;
-        let dist = to_player.length();
-
-        // 方向
-        let dir = if dist > 0.001 {
-            to_player / dist
-        } else {
-            Vec2::X
-        };
-
-        let mut move_dir = Vec2::ZERO;
-
-        move_dir = dir;
-
-        let dt = time.delta_secs();
-
-        transform.translation.x += move_dir.x * speed.0 * dt;
-        transform.translation.y += move_dir.y * speed.0 * dt;
+    for (speed, position, mut line_velocity) in &mut enemies {
+        line_velocity.0 = (player_pos - position.0).normalize_or_zero() * speed.0;
     }
 }

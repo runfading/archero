@@ -1,5 +1,5 @@
-use crate::core::RunStats;
 use crate::GameState;
+use crate::core::RunStats;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy_widget::prelude::{ButtonBuilder, ButtonStyle};

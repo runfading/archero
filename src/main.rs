@@ -12,7 +12,7 @@ use crate::ui::UiPlugin;
 use crate::world::WorldPlugin;
 use avian2d::{
     PhysicsPlugins,
-    prelude::{Gravity, PhysicsTime},
+    prelude::{Gravity, PhysicsDebugPlugin, PhysicsGizmos, PhysicsInterpolationPlugin},
 };
 use bevy::prelude::*;
 use serde::Deserialize;
@@ -83,7 +83,15 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(PhysicsPlugins::default())
+        .add_plugins(PhysicsPlugins::default().set(PhysicsInterpolationPlugin::interpolate_all()))
+        .add_plugins(PhysicsDebugPlugin)
+        .insert_gizmo_config(
+            PhysicsGizmos {
+                axis_lengths: None,
+                ..default()
+            },
+            GizmoConfig::default(),
+        )
         .insert_resource(Gravity::ZERO)
         .configure_sets(
             Update,
