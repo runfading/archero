@@ -1,5 +1,7 @@
 use crate::GameState;
 use crate::actors::player::config::PlayerConfig;
+use crate::core::weapon::WeaponId;
+use crate::core::weapon::config::{WeaponConfig, WeaponConfigs};
 use crate::world::level::config::LevelConfig;
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
@@ -18,14 +20,33 @@ pub struct GameAssets {
 
     #[asset(path = "levels/level_001.level.ron")]
     level_001_config: Handle<LevelConfig>,
+
+    #[asset(path = "config/default_weapon.weapon.ron")]
+    weapon_configs: Handle<WeaponConfigs>,
 }
 
 impl GameAssets {
-    pub fn player_config<'a>(&self, config: &'a Assets<PlayerConfig>) -> Option<&'a PlayerConfig> {
-        config.get(&self.player_config)
+    pub fn player_config<'a>(&self, config: &'a Assets<PlayerConfig>) -> &'a PlayerConfig {
+        config.get(&self.player_config).expect("找不到玩家基础配置")
     }
+
     pub fn level_001_config<'a>(&self, config: &'a Assets<LevelConfig>) -> Option<&'a LevelConfig> {
         config.get(&self.level_001_config)
+    }
+
+    fn weapon_configs<'a>(&self, config: &'a Assets<WeaponConfigs>) -> Option<&'a WeaponConfigs> {
+        config.get(&self.weapon_configs)
+    }
+
+    pub fn get_weapon_config<'a>(
+        &self,
+        weapon_id: WeaponId,
+        config: &'a Assets<WeaponConfigs>,
+    ) -> &'a WeaponConfig {
+        self.weapon_configs(config)
+            .map(|w| w.get(weapon_id))
+            .flatten()
+            .expect("没有找到武器配置")
     }
 }
 
@@ -93,6 +114,7 @@ impl Plugin for AssetLoadingPlugin {
         app.add_plugins((
             RonAssetPlugin::<PlayerConfig>::new(&["game.ron"]),
             RonAssetPlugin::<LevelConfig>::new(&["level.ron"]),
+            RonAssetPlugin::<WeaponConfigs>::new(&["weapon.ron"]),
         ))
         .add_loading_state(
             LoadingState::new(GameState::StartupLoading)

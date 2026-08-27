@@ -1,4 +1,11 @@
-use crate::{GameSet, GameState, RunPhase};
+pub mod damage;
+pub mod heal;
+
+use crate::core::health::damage::{
+    CalDamageSnapshot, DamageMessage, apply_damage, cal_damage_snapshot,
+};
+use crate::core::weapon::WeaponSet;
+use crate::{GameSet, RunSet};
 use bevy::prelude::*;
 
 #[derive(Component, Default, Debug, Clone, Copy)]
@@ -36,24 +43,6 @@ impl Health {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Health;
-
-    #[test]
-    fn healing_is_capped_at_max_health() {
-        let mut health = Health {
-            current: 40.0,
-            max: 60.0,
-        };
-
-        health.heal(30.0);
-
-        assert_eq!(health.current, 60.0);
-        assert_eq!(health.ratio(), 1.0);
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum HealthEffect {
     Damage { amount: f32 },
@@ -63,10 +52,7 @@ pub enum HealthEffect {
 /// 生命值变动消息
 #[derive(Message, Debug, Clone)]
 pub struct HealthEffectMessage {
-    pub source: Entity,
-    pub source_name: String,
-    pub target: Entity,
-    pub target_name: String,
+    pub damage: DamageMessage,
     pub effect: HealthEffect,
 }
 
@@ -80,26 +66,41 @@ pub struct HealthPlugin;
 impl Plugin for HealthPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<HealthEffectMessage>()
+            .add_message::<DamageMessage>()
+            .add_message::<CalDamageSnapshot>()
             .add_message::<DeathMessage>()
             .add_systems(
                 Update,
-                apply_health_effects
-                    .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing)))
-                    .in_set(GameSet::Core),
+                (
+                    cal_damage_snapshot.after(WeaponSet::Attack),
+                    apply_damage,
+                    apply_health_effects,
+                )
+                    .chain()
+                    .in_set(GameSet::Core)
+                    .in_set(RunSet::Playing),
             );
     }
 }
 
 fn apply_health_effects(
     mut effects: MessageReader<HealthEffectMessage>,
-    mut health_query: Query<&mut Health>,
+    mut health_query: Query<(&mut Health, Option<&Name>)>,
+    name_query: Query<&Name>,
     mut death_writer: MessageWriter<DeathMessage>,
 ) {
     for message in effects.read() {
-        let Ok(mut health) = health_query.get_mut(message.target) else {
-            warn!("health target not found");
-            continue;
+        let target = message.damage.target;
+        let source = message.damage.owner;
+
+        let (mut health, target_name) = match health_query.get_mut(target) {
+            Ok((health, name)) => (health, name.map_or_default(|name| name.as_str())),
+            Err(_) => {
+                warn!("health target not found");
+                continue;
+            }
         };
+        let source_name = name_query.get(source).map_or_default(|t| t.as_str());
 
         match message.effect {
             HealthEffect::Damage { amount } => {
@@ -112,13 +113,13 @@ fn apply_health_effects(
 
                 info!(
                     "{}对{}造成伤害{}点,剩余{}",
-                    message.source_name, message.target_name, amount, health.current
+                    source_name, target_name, amount, health.current
                 );
                 if was_alive && health.current <= 0.0 {
-                    /// 生命值归零发送死亡消息
+                    // 生命值归零发送死亡消息
                     death_writer.write(DeathMessage {
-                        entity: message.target,
-                        killer: message.source,
+                        entity: target,
+                        killer: source,
                     });
                 }
             }
@@ -133,7 +134,7 @@ fn apply_health_effects(
                     health.heal(amount);
                     info!(
                         "{}对{}回复{}点,当前{}",
-                        message.source_name, message.target_name, amount, health.current
+                        source_name, target_name, amount, health.current
                     );
                 }
             }

@@ -1,5 +1,7 @@
 use crate::asset::GameMeshAssets;
-use crate::core::health::{Health, HealthEffect, HealthEffectMessage};
+use crate::core::health::Health;
+use crate::core::health::damage::{DamageMessage, DamageSnapshot};
+use crate::core::weapon::FireWeaponMessage;
 use crate::core::{Faction, RunEntity};
 use crate::{GameSet, RunSet};
 use avian2d::prelude::{
@@ -15,10 +17,8 @@ use bevy::window::PrimaryWindow;
 pub struct Projectile {
     /// 所有者
     pub owner: Entity,
-    /// 伤害
-    pub damage: f32,
-    /// 是否暴击
-    pub crit: bool,
+    /// 所属武器
+    pub owner_weapon: Entity,
     /// 穿透数量
     pub pierce: u32,
     /// 反弹次数
@@ -44,33 +44,27 @@ impl Plugin for ProjectilePlugin {
 
 pub fn spawn_projectile(
     commands: &mut Commands,
-    owner: Entity,
+    fire: &FireWeaponMessage,
     faction: Faction,
     origin: Vec2,
     dir: Vec2,
     speed: f32,
-    damage: f32,
     pierce: u32,
     assets: &GameMeshAssets,
-) {
+) -> Option<Entity> {
     if !origin.is_finite() {
         warn!("拒绝生成位置非法的弹丸: {origin:?}");
-        return;
+        return None;
     }
 
     if !speed.is_finite() || speed <= 0.0 {
         warn!("拒绝生成速度非法的弹丸: {speed}");
-        return;
-    }
-
-    if !damage.is_finite() || damage <= 0.0 {
-        warn!("拒绝生成伤害非法的弹丸: {damage}");
-        return;
+        return None;
     }
 
     let Some(dir) = dir.try_normalize() else {
         warn!("拒绝生成方向非法的弹丸: {dir:?}");
-        return;
+        return None;
     };
 
     let angle = dir.to_angle();
@@ -81,13 +75,12 @@ pub fn spawn_projectile(
         assets.mat_enemy_shot.clone()
     };
 
-    commands
+    let projectile = commands
         .spawn((
             faction,
             Projectile {
-                owner,
-                damage,
-                crit: false,
+                owner: fire.owner,
+                owner_weapon: fire.weapon,
                 pierce,
                 ricochet: 0,
                 lifetime: 10.0,
@@ -107,7 +100,10 @@ pub fn spawn_projectile(
                 .with_rotation(Quat::from_rotation_z(angle))
                 .with_scale(Vec3::new(16.0, 4.0, 1.0)),
         ))
-        .observe(on_projectile_collision);
+        .observe(on_projectile_collision)
+        .id();
+
+    Some(projectile)
 }
 
 /// 检查子弹despawn时机
@@ -136,10 +132,9 @@ fn update_lifetime(
 fn on_projectile_collision(
     event: On<CollisionStart>,
     mut commands: Commands,
-    mut projectiles: Query<(&mut Projectile, &Faction)>,
-    targets: Query<(&Faction, Option<&Name>), With<Health>>,
-    names: Query<&Name>,
-    mut effect_writer: MessageWriter<HealthEffectMessage>,
+    mut projectiles: Query<(&mut Projectile, &Faction, &DamageSnapshot)>,
+    targets: Query<&Faction, With<Health>>,
+    mut effect_writer: MessageWriter<DamageMessage>,
 ) {
     // 因为 Observer 挂在弹丸实体上：
     // collider1 一定是被观察的弹丸
@@ -147,12 +142,14 @@ fn on_projectile_collision(
     let projectile_entity = event.collider1;
     let target_entity = event.collider2;
 
-    let Ok((mut projectile, projectile_faction)) = projectiles.get_mut(projectile_entity) else {
+    let Ok((mut projectile, projectile_faction, snapshot)) = projectiles.get_mut(projectile_entity)
+    else {
+        warn!("弹丸命中时缺少伤害快照: {projectile_entity:?}");
         return;
     };
 
     // 墙壁等没有 Health 的实体会在这里被忽略
-    let Ok((target_faction, target_name)) = targets.get(target_entity) else {
+    let Ok(target_faction) = targets.get(target_entity) else {
         return;
     };
 
@@ -165,21 +162,12 @@ fn on_projectile_collision(
         return;
     }
 
-    let source_name = names
-        .get(projectile.owner)
-        .map(Name::as_str)
-        .unwrap_or_default();
-
-    let target_name = target_name.map(Name::as_str).unwrap_or_default();
-
-    effect_writer.write(HealthEffectMessage {
-        source: projectile.owner,
-        source_name: source_name.to_owned(),
+    effect_writer.write(DamageMessage {
+        source: projectile_entity,
+        owner: projectile.owner,
+        owner_weapon: Some(projectile.owner_weapon),
         target: target_entity,
-        target_name: target_name.to_owned(),
-        effect: HealthEffect::Damage {
-            amount: projectile.damage,
-        },
+        snapshot: *snapshot,
     });
 
     projectile.hit.push(target_entity);

@@ -3,8 +3,9 @@ use crate::asset::GameMeshAssets;
 use crate::core::Faction;
 use crate::core::attack::projectile_attack::spawn_projectile;
 use crate::core::attack::{AttackSpec, CombatEffect, ProjectileAttackProperty};
+use crate::core::health::damage::{BaseDamage, CalDamageSnapshot, DamageMultiplierBonus};
 use crate::core::weapon::config::WeaponConfig;
-use crate::core::weapon::{FireWeaponMessage, WeaponId, WeaponSet};
+use crate::core::weapon::{FireWeaponMessage, WeaponSet};
 use crate::{GameSet, RunSet};
 use avian2d::prelude::*;
 use bevy::prelude::*;
@@ -61,15 +62,25 @@ impl BowRuntime {
     }
 }
 
+/// 已完成通用武器校验、等待弓系统执行的攻击消息。
+#[derive(Message, Debug, Clone)]
+pub struct BowAttackMessage {
+    pub fire: FireWeaponMessage,
+    pub faction: Faction,
+}
+
 pub struct BowPlugin;
 impl Plugin for BowPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_message::<BowAttackMessage>().add_systems(
             Update,
-            request_weapon_fire
+            (
+                request_weapon_fire.in_set(WeaponSet::RequestFire),
+                attack.in_set(WeaponSet::Attack),
+            )
+                .chain()
                 .in_set(GameSet::Core)
-                .in_set(RunSet::Playing)
-                .in_set(WeaponSet::RequestFire),
+                .in_set(RunSet::Playing),
         );
     }
 }
@@ -83,22 +94,37 @@ pub fn spawn_bow(commands: &mut Commands, owner: Entity, config: &WeaponConfig) 
         }
     };
 
-    if matches!(projectile.effect, CombatEffect::Heal { .. }) {
-        warn!("弓箭攻击方式不支持治疗");
-        return;
-    }
+    let base_damage = match projectile.effect {
+        CombatEffect::Damage { amount } if amount.is_finite() && amount > 0.0 => amount,
+        CombatEffect::Damage { amount } => {
+            warn!("弓箭基础伤害非法: {amount}");
+            return;
+        }
+        CombatEffect::Heal { .. } => {
+            warn!("弓箭攻击方式不支持治疗");
+            return;
+        }
+        CombatEffect::ApplyStatus { .. } => {
+            warn!("弓箭攻击方式暂不支持纯状态攻击");
+            return;
+        }
+    };
 
     let runtime = BowRuntime::new(projectile.cooldown);
     let weapon = commands
         .spawn_scene(bsn! {
             #bow
-            WeaponId::Bow
+            template_value(config.id)
             template_value(config.targeting.clone())
             template_value(projectile)
             template_value(BowProperty::default())
             template_value(runtime)
         })
-        .insert(Transform::default())
+        .insert((
+            Transform::default(),
+            BaseDamage::new(base_damage),
+            DamageMultiplierBonus::new(config.base_multiplying_power),
+        ))
         .id();
 
     commands.entity(owner).add_child(weapon);
@@ -218,38 +244,43 @@ fn find_nearest_target(
         .map(|(entity, projection, distance_squared)| (entity, projection, distance_squared.sqrt()))
 }
 
-pub fn attack(
-    commands: &mut Commands,
-    owner: Entity,
-    fire: &FireWeaponMessage,
-    faction: Faction,
-    bows: &Query<(&BowProperty, &ProjectileAttackProperty)>,
-    assets: &GameMeshAssets,
+fn attack(
+    mut commands: Commands,
+    mut messages: MessageReader<BowAttackMessage>,
+    bows: Query<(&BowProperty, &ProjectileAttackProperty)>,
+    assets: Res<GameMeshAssets>,
+    mut snapshot_writer: MessageWriter<CalDamageSnapshot>,
 ) {
-    let Ok((bow, projectile)) = bows.get(fire.weapon) else {
-        warn!("开火的弓实体缺少属性: {:?}", fire.weapon);
-        return;
-    };
+    for message in messages.read() {
+        let fire = &message.fire;
+        let Ok((bow, projectile)) = bows.get(fire.weapon) else {
+            warn!("开火的弓实体缺少属性: {:?}", fire.weapon);
+            continue;
+        };
 
-    let damage = match projectile.effect {
-        CombatEffect::Damage { amount } => amount,
-        CombatEffect::Heal { .. } => return,
-    };
+        for direction in
+            projectile_directions(fire.direction, bow.projectile_count, bow.spread_degrees)
+        {
+            let origin = fire.origin + direction * PROJECTILE_SPAWN_OFFSET;
+            let Some(projectile_entity) = spawn_projectile(
+                &mut commands,
+                fire,
+                message.faction,
+                origin,
+                direction,
+                projectile.projectile_speed,
+                bow.pierce,
+                &assets,
+            ) else {
+                continue;
+            };
 
-    for direction in projectile_directions(fire.direction, bow.projectile_count, bow.spread_degrees)
-    {
-        let origin = fire.origin + direction * PROJECTILE_SPAWN_OFFSET;
-        spawn_projectile(
-            commands,
-            owner,
-            faction,
-            origin,
-            direction,
-            projectile.projectile_speed,
-            damage,
-            bow.pierce,
-            assets,
-        );
+            snapshot_writer.write(CalDamageSnapshot {
+                owner: fire.owner,
+                owner_weapon: Some(fire.weapon),
+                source: projectile_entity,
+            });
+        }
     }
 }
 

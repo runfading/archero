@@ -1,0 +1,17 @@
+/* @[crate::core::weapon::config::WeaponConfig] */
+
+{
+    Bow: WeaponConfig (
+        id: Bow,
+        targeting: Nearest,
+        base_multiplying_power: 1.0,
+        attack: Projectile((
+            range: 560.0,
+            cooldown: 1.5,
+            projectile_speed: 720.0,
+            effect: Damage(
+                amount: 10.0,
+            ),
+        )),
+    ),
+}

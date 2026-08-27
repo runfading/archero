@@ -1,6 +1,7 @@
 use crate::core::Faction;
 use crate::core::attack::Knockback;
-use crate::core::health::{Health, HealthEffect, HealthEffectMessage};
+use crate::core::health::Health;
+use crate::core::health::damage::{DamageMessage, DamageSnapshot};
 use avian2d::prelude::{CollisionStart, LinearVelocity, Position};
 use bevy::prelude::*;
 use serde::Deserialize;
@@ -34,20 +35,20 @@ impl Default for ContactKnockback {
 pub fn on_contact_damage(
     event: On<CollisionStart>,
     mut commands: Commands,
-    attackers: Query<(&Faction, Option<&Name>, &ContactDamage, &ContactKnockback)>,
-    targets: Query<(&Faction, Option<&Name>), With<Health>>,
+    attackers: Query<(&Faction, &ContactDamage, &ContactKnockback)>,
+    targets: Query<&Faction, With<Health>>,
     positions: Query<&Position>,
     mut velocities: Query<&mut LinearVelocity>,
-    mut message_writer: MessageWriter<HealthEffectMessage>,
+    mut message_writer: MessageWriter<DamageMessage>,
 ) {
     // 对实体级 Observer，Avian 保证 collider1 是 Observer 所属实体。
     let source = event.collider1;
     let target = event.collider2;
 
-    let Ok((source_faction, source_name, damage, knockback)) = attackers.get(source) else {
+    let Ok((source_faction, damage, knockback)) = attackers.get(source) else {
         return;
     };
-    let Ok((target_faction, target_name)) = targets.get(target) else {
+    let Ok(target_faction) = targets.get(target) else {
         return;
     };
 
@@ -55,12 +56,12 @@ pub fn on_contact_damage(
         return;
     }
 
-    message_writer.write(HealthEffectMessage {
+    message_writer.write(DamageMessage {
         source,
-        source_name: source_name.map(Name::as_str).unwrap_or_default().to_owned(),
+        owner: source,
+        owner_weapon: None,
         target,
-        target_name: target_name.map(Name::as_str).unwrap_or_default().to_owned(),
-        effect: HealthEffect::Damage { amount: damage.0 },
+        snapshot: DamageSnapshot::direct(damage.0),
     });
 
     if !knockback.speed.is_finite()

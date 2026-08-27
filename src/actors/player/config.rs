@@ -1,5 +1,7 @@
+use crate::asset::GameAssets;
 use bevy::asset::Asset;
-use bevy::prelude::TypePath;
+use bevy::ecs::system::SystemParam;
+use bevy::prelude::*;
 use serde::Deserialize;
 
 #[derive(Asset, TypePath, Deserialize, Debug)]
@@ -8,14 +10,8 @@ pub struct PlayerConfig {
     pub move_speed: f32,
     /// 基础血量
     pub base_hp: f32,
-    /// 伤害
-    pub damage: f32,
-    /// 攻击间隔
-    pub attack_interval: f32,
-    /// 攻击范围
-    pub range: f32,
-    /// 弹丸速度
-    pub projectile_speed: f32,
+    /// 基础倍率
+    pub base_multiplying_power: f32,
 }
 
 impl Default for PlayerConfig {
@@ -23,10 +19,19 @@ impl Default for PlayerConfig {
         Self {
             move_speed: 250.0,
             base_hp: 100.0,
-            damage: 10.0,
-            attack_interval: 0.6,
-            range: 340.0,
-            projectile_speed: 720.0,
+            base_multiplying_power: 1.0,
         }
+    }
+}
+
+#[derive(SystemParam)]
+pub struct PlayerConfigParam<'w> {
+    game_assets: Res<'w, GameAssets>,
+    configs: Res<'w, Assets<PlayerConfig>>,
+}
+
+impl PlayerConfigParam<'_> {
+    pub fn get(&self) -> &PlayerConfig {
+        self.game_assets.player_config(&self.configs)
     }
 }

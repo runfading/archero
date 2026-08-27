@@ -1,8 +1,9 @@
 pub mod config;
 
 use crate::actors::player::config::PlayerConfig;
-use crate::asset::GameMeshAssets;
+use crate::asset::{GameAssets, GameMeshAssets};
 use crate::core::attack::{AttackSpec, CombatEffect, Knockback, ProjectileAttackProperty};
+use crate::core::health::damage::{CriticalStats, DamageMultiplierBonus};
 use crate::core::health::{DeathMessage, Health};
 use crate::core::weapon::WeaponId;
 use crate::core::weapon::bow::spawn_bow;
@@ -146,6 +147,7 @@ fn movement(
 pub fn spawn_player(
     commands: &mut Commands,
     assets: &GameMeshAssets,
+    weapon_config: &WeaponConfig,
     player_config: &PlayerConfig,
 ) {
     let player = Player::initialize(player_config);
@@ -157,6 +159,8 @@ pub fn spawn_player(
         })
         .insert((
             Health::full(player_config.base_hp),
+            DamageMultiplierBonus::new(player_config.base_multiplying_power),
+            CriticalStats::default(),
             // 碰撞
             RigidBody::Dynamic,
             Collider::circle(1.0),
@@ -167,18 +171,6 @@ pub fn spawn_player(
             Transform::from_xyz(0.0, 0.0, 1.).with_scale(Vec3::splat(14.0)),
         ))
         .id();
-    spawn_bow(
-        commands,
-        player,
-        &WeaponConfig {
-            id: WeaponId::Bow,
-            targeting: Default::default(),
-            attack: AttackSpec::Projectile(ProjectileAttackProperty {
-                range: 560.0,
-                cooldown: 1.5,
-                projectile_speed: 560.0,
-                effect: CombatEffect::Damage { amount: 10.0 },
-            }),
-        },
-    )
+
+    spawn_bow(commands, player, weapon_config)
 }

@@ -1,7 +1,9 @@
 use crate::actors::enemies::EnemyId;
 use crate::actors::enemies::config::EnemyConfig;
+use crate::asset::GameAssets;
 use bevy::asset::Asset;
-use bevy::prelude::TypePath;
+use bevy::ecs::system::SystemParam;
+use bevy::prelude::*;
 use serde::Deserialize;
 
 /// 关卡配置
@@ -30,4 +32,18 @@ pub struct SpawnBatchConfig {
 pub struct EnemyBatchConfig {
     pub enemy_config: EnemyConfig,
     pub count: u32,
+}
+
+#[derive(SystemParam)]
+pub struct LevelConfigParam<'w> {
+    game_assets: Res<'w, GameAssets>,
+    configs: Res<'w, Assets<LevelConfig>>,
+}
+
+impl LevelConfigParam<'_> {
+    pub fn get(&self) -> &LevelConfig {
+        self.game_assets
+            .level_001_config(&self.configs)
+            .expect("没有找到关卡配置")
+    }
 }

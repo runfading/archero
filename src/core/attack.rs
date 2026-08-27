@@ -16,10 +16,10 @@ pub enum AttackSpec {
     Melee(MeleeAttackProperty),
     /// 投掷物/发射物
     Projectile(ProjectileAttackProperty),
-    /// 法术/技能
-    Spell(SpellAttackProperty),
-    /// 治疗
-    Heal(HealAttackProperty),
+    /// 区域
+    Area(AreaAttackProperty),
+    /// 光束
+    Beam(BeamAttackProperty),
 }
 
 #[derive(Component, Debug, Clone, Deserialize)]
@@ -62,13 +62,13 @@ impl Default for ProjectileAttackProperty {
 
 #[derive(Component, Debug, Clone, Deserialize)]
 #[serde(default)]
-pub struct SpellAttackProperty {
+pub struct AreaAttackProperty {
     pub radius: f32,
     pub cooldown: f32,
     pub effect: CombatEffect,
 }
 
-impl Default for SpellAttackProperty {
+impl Default for AreaAttackProperty {
     fn default() -> Self {
         Self {
             radius: 50.0,
@@ -80,16 +80,21 @@ impl Default for SpellAttackProperty {
 
 #[derive(Component, Debug, Clone, Deserialize)]
 #[serde(default)]
-pub struct HealAttackProperty {
-    pub radius: f32,
+pub struct BeamAttackProperty {
+    /// 宽度
+    pub width: f32,
+    /// 过热冷却时间
     pub cooldown: f32,
+    /// 最大持续时间
+    pub duration: f32,
     pub effect: CombatEffect,
 }
 
-impl Default for HealAttackProperty {
+impl Default for BeamAttackProperty {
     fn default() -> Self {
         Self {
-            radius: 50.0,
+            width: 50.0,
+            duration: 10.0,
             cooldown: 2.0,
             effect: CombatEffect::Heal { amount: 4.0 },
         }
@@ -100,6 +105,12 @@ impl Default for HealAttackProperty {
 pub enum CombatEffect {
     Damage { amount: f32 },
     Heal { amount: f32 },
+    ApplyStatus { status: StatusId },
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum StatusId {
+    DOT,
 }
 
 /// 单位正处于击退状态。存在该组件时，常规移动控制暂时让出速度控制权。

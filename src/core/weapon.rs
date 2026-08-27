@@ -1,7 +1,5 @@
-use crate::asset::GameMeshAssets;
 use crate::core::Faction;
-use crate::core::attack::ProjectileAttackProperty;
-use crate::core::weapon::bow::BowPlugin;
+use crate::core::weapon::bow::{BowAttackMessage, BowPlugin};
 use crate::{GameSet, RunSet};
 use bevy::ecs::VariantDefaults;
 use bevy::prelude::*;
@@ -10,7 +8,9 @@ use serde::Deserialize;
 pub mod bow;
 pub mod config;
 
-#[derive(Deserialize, Component, Default, Debug, Copy, Clone, VariantDefaults)]
+#[derive(
+    Deserialize, Component, Default, Debug, Copy, Clone, Hash, Eq, PartialEq, VariantDefaults,
+)]
 pub enum WeaponId {
     #[default]
     Bow,
@@ -27,20 +27,6 @@ pub enum TargetingMode {
     ManualDirection,
     /// 随机方向
     Random,
-}
-
-/// 装备的武器
-#[derive(Component)]
-pub struct EquippedWeapon {
-    pub weapon_id: WeaponId,
-    /// 武器等级
-    pub level: u32,
-    /// 弹丸数目（正向弹）
-    pub projectile_count: u32,
-    /// 攻击扩散度
-    pub spread_degrees: f32,
-    /// 穿透
-    pub pierce: u32,
 }
 
 /// 武器开火消息
@@ -66,6 +52,7 @@ pub struct FireWeaponMessage {
 pub enum WeaponSet {
     RequestFire,
     Fire,
+    Attack,
     ChangeCartridge,
 }
 
@@ -79,7 +66,8 @@ impl Plugin for WeaponPlugin {
                 (
                     WeaponSet::RequestFire,
                     WeaponSet::Fire.after(WeaponSet::RequestFire),
-                    WeaponSet::ChangeCartridge.after(WeaponSet::Fire),
+                    WeaponSet::Attack.after(WeaponSet::Fire),
+                    WeaponSet::ChangeCartridge.after(WeaponSet::Attack),
                 ),
             )
             .add_plugins(BowPlugin)
@@ -93,12 +81,10 @@ impl Plugin for WeaponPlugin {
 }
 
 fn fire(
-    mut commands: Commands,
     mut fire_message: MessageReader<FireWeaponMessage>,
     weapon_id_query: Query<&WeaponId>,
     faction_query: Query<&Faction>,
-    bows: Query<(&bow::BowProperty, &ProjectileAttackProperty)>,
-    assets: Res<GameMeshAssets>,
+    mut bow_writer: MessageWriter<BowAttackMessage>,
 ) {
     for fire in fire_message.read() {
         let weapon = match weapon_id_query.get(fire.weapon) {
@@ -120,7 +106,10 @@ fn fire(
         // 应用攻击逻辑
         match weapon {
             WeaponId::Bow => {
-                bow::attack(&mut commands, fire.owner, fire, *faction, &bows, &assets);
+                bow_writer.write(BowAttackMessage {
+                    fire: fire.clone(),
+                    faction: *faction,
+                });
             }
         }
     }
