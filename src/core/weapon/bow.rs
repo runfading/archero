@@ -1,14 +1,65 @@
 use crate::actors::enemies::Enemy;
 use crate::asset::GameMeshAssets;
 use crate::core::Faction;
-use crate::core::attack::projectile_attack::{ProjectileProperty, spawn_projectile};
-use crate::core::attack::{AttackSpec, AttackTriggerRange, CombatEffect};
+use crate::core::attack::projectile_attack::spawn_projectile;
+use crate::core::attack::{AttackSpec, CombatEffect, ProjectileAttackProperty};
 use crate::core::weapon::config::WeaponConfig;
-use crate::core::weapon::{Cooldown, FireWeaponMessage, WeaponId, WeaponSet};
+use crate::core::weapon::{FireWeaponMessage, WeaponId, WeaponSet};
 use crate::{GameSet, RunSet};
 use avian2d::prelude::*;
 use bevy::prelude::*;
 use bevy::scene::{bsn, template_value};
+
+/// 箭矢从单位中心沿发射方向向外偏移，避免出生时与发射者重叠。
+const PROJECTILE_SPAWN_OFFSET: f32 = 20.0;
+
+#[derive(Component, Debug, Clone)]
+pub struct BowProperty {
+    /// 每次射出的箭矢数量
+    pub projectile_count: u32,
+
+    /// 多支箭之间的总扩散角度
+    pub spread_degrees: f32,
+
+    /// 可额外穿透的目标数量
+    pub pierce: u32,
+
+    /// 每轮连续开火次数
+    pub burst_count: u32,
+
+    /// 连续开火之间的间隔
+    pub burst_interval: f32,
+}
+
+impl Default for BowProperty {
+    fn default() -> Self {
+        Self {
+            projectile_count: 1,
+            spread_degrees: 0.0,
+            pierce: 0,
+            burst_count: 1,
+            burst_interval: 0.1,
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone, Default)]
+pub struct BowRuntime {
+    /// 下次允许攻击的计时器
+    pub cooldown: Timer,
+
+    /// 当前剩余箭矢
+    pub current_ammo: Option<u32>,
+}
+
+impl BowRuntime {
+    pub fn new(attack_interval: f32) -> Self {
+        Self {
+            cooldown: Timer::from_seconds(attack_interval.max(0.0), TimerMode::Once),
+            current_ammo: None,
+        }
+    }
+}
 
 pub struct BowPlugin;
 impl Plugin for BowPlugin {
@@ -23,42 +74,29 @@ impl Plugin for BowPlugin {
     }
 }
 
-pub fn spawn_bow(mut commands: &mut Commands, owner: Entity, config: &WeaponConfig) {
-    let (range, cooldown, projectile_speed, amount) = match &config.attack {
-        AttackSpec::Projectile {
-            range,
-            cooldown,
-            projectile_speed,
-            effect,
-        } => {
-            let amount = match effect {
-                CombatEffect::Damage { amount } => amount,
-                CombatEffect::Heal { .. } => {
-                    warn!("弓箭攻击方式不支持治疗");
-                    return;
-                }
-            };
-
-            (range, cooldown, projectile_speed, amount)
-        }
+pub fn spawn_bow(commands: &mut Commands, owner: Entity, config: &WeaponConfig) {
+    let projectile = match &config.attack {
+        AttackSpec::Projectile(property) => property.clone(),
         _ => {
             warn!("弓箭攻击方式暂时只支持弹道，不支持{:?}", config.attack);
             return;
         }
     };
+
+    if matches!(projectile.effect, CombatEffect::Heal { .. }) {
+        warn!("弓箭攻击方式不支持治疗");
+        return;
+    }
+
+    let runtime = BowRuntime::new(projectile.cooldown);
     let weapon = commands
         .spawn_scene(bsn! {
             #bow
             WeaponId::Bow
             template_value(config.targeting.clone())
-            template_value(Cooldown{ timer: Timer::from_seconds(*cooldown,TimerMode::Repeating) })
-            template_value(ProjectileProperty {
-                speed: *projectile_speed,
-                num: 1,
-                fires_num: 1,
-                damage: *amount,
-            })
-            template_value(AttackTriggerRange { range: *range })
+            template_value(projectile)
+            template_value(BowProperty::default())
+            template_value(runtime)
         })
         .insert(Transform::default())
         .id();
@@ -73,51 +111,55 @@ fn request_weapon_fire(
         // 武器entity
         Entity,
         &ChildOf,
-        // 武器是玩家的 child，因此这里也应使用世界坐标：不然得到的是武器相对玩家的局部坐标
-        &GlobalTransform,
-        &AttackTriggerRange,
-        &mut Cooldown,
-        &ProjectileProperty,
+        &ProjectileAttackProperty,
+        &mut BowRuntime,
     )>,
+    owner_positions: Query<&Position>,
     spatial_query: SpatialQuery,
     // 先过滤掉敌人，后面再想办法
     colliders: Query<(&Collider, &Position, &Rotation), With<Enemy>>,
     mut writer: MessageWriter<FireWeaponMessage>,
 ) {
-    for (weapon, child_of, transform, trigger_range, mut cooldown, _projectile) in
-        &mut cooldown_query
-    {
+    for (weapon, child_of, projectile, mut runtime) in &mut cooldown_query {
         // 当前查询匹配到的子实体，也就是武器
 
         // weapon 的直接父实体，也就是当前的 owner
         let owner = child_of.parent();
 
-        cooldown.timer.tick(time.delta());
+        runtime.cooldown.tick(time.delta());
 
-        let origin = transform.translation().truncate();
+        if !runtime.cooldown.is_finished() {
+            continue;
+        }
+
+        // 以 Avian 的物理位置为权威坐标，避免读取尚未传播的 GlobalTransform。
+        let Ok(owner_position) = owner_positions.get(owner) else {
+            warn!("武器所有者缺少 Position: {owner:?}");
+            continue;
+        };
+        let origin = owner_position.0;
         let nearest_target = find_nearest_target(
             origin,
-            trigger_range.range,
+            projectile.range,
             vec![owner, weapon],
             &spatial_query,
             &colliders,
         );
 
-        if let Some((_entity, target, _distance)) = nearest_target {
+        if let Some((target_entity, target, _distance)) = nearest_target {
             let Some(direction) = (target - origin).try_normalize() else {
                 // 玩家和目标完全重合，本次不开火
                 continue;
             };
 
-            if cooldown.timer.just_finished() {
-                writer.write(FireWeaponMessage {
-                    owner,
-                    weapon,
-                    origin,
-                    direction,
-                    target: None,
-                });
-            }
+            writer.write(FireWeaponMessage {
+                owner,
+                weapon,
+                origin,
+                direction,
+                target: Some(target_entity),
+            });
+            runtime.cooldown.reset();
         }
     }
 }
@@ -177,16 +219,55 @@ fn find_nearest_target(
 }
 
 pub fn attack(
-    In((owner, fire, faction)): In<(Entity, FireWeaponMessage, Faction)>,
-    mut commands: Commands,
-    assets: Res<GameMeshAssets>,
+    commands: &mut Commands,
+    owner: Entity,
+    fire: &FireWeaponMessage,
+    faction: Faction,
+    bows: &Query<(&BowProperty, &ProjectileAttackProperty)>,
+    assets: &GameMeshAssets,
 ) {
-    spawn_projectile(
-        &mut commands,
-        owner,
-        faction,
-        fire.origin,
-        fire.direction,
-        &assets,
-    );
+    let Ok((bow, projectile)) = bows.get(fire.weapon) else {
+        warn!("开火的弓实体缺少属性: {:?}", fire.weapon);
+        return;
+    };
+
+    let damage = match projectile.effect {
+        CombatEffect::Damage { amount } => amount,
+        CombatEffect::Heal { .. } => return,
+    };
+
+    for direction in projectile_directions(fire.direction, bow.projectile_count, bow.spread_degrees)
+    {
+        let origin = fire.origin + direction * PROJECTILE_SPAWN_OFFSET;
+        spawn_projectile(
+            commands,
+            owner,
+            faction,
+            origin,
+            direction,
+            projectile.projectile_speed,
+            damage,
+            bow.pierce,
+            assets,
+        );
+    }
+}
+
+fn projectile_directions(
+    center: Vec2,
+    count: u32,
+    spread_degrees: f32,
+) -> impl Iterator<Item = Vec2> {
+    let count = count.max(1);
+    let total_spread = spread_degrees.to_radians();
+
+    (0..count).map(move |index| {
+        let t = if count == 1 {
+            0.5
+        } else {
+            index as f32 / (count - 1) as f32
+        };
+        let angle = -total_spread * 0.5 + total_spread * t;
+        Mat2::from_angle(angle) * center
+    })
 }

@@ -4,7 +4,7 @@ mod goblin_warrior;
 use crate::actors::enemies::config::EnemyConfig;
 use crate::actors::player::Player;
 use crate::asset::GameMeshAssets;
-use crate::core::attack::contact_attack::Knockback;
+use crate::core::attack::Knockback;
 use crate::core::health::{DeathMessage, Health};
 use crate::core::{Faction, MoveSpeed, RunEntity, RunStats};
 use crate::{GameSet, GameState, RunPhase, RunSet};
@@ -118,7 +118,7 @@ pub struct EnemyPlugin;
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Update,
+            FixedUpdate,
             enemy_ai.in_set(GameSet::Core).in_set(RunSet::Playing),
         );
     }
@@ -133,6 +133,9 @@ fn enemy_ai(
 ) {
     // enemy 移动
     for (speed, position, mut line_velocity) in &mut enemies {
-        line_velocity.0 = (player_pos - position.0).normalize_or_zero() * speed.0;
+        let desired_velocity = (player_pos.0 - position.0).normalize_or_zero() * speed.0;
+        if line_velocity.0 != desired_velocity {
+            line_velocity.0 = desired_velocity;
+        }
     }
 }

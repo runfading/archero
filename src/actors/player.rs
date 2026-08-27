@@ -2,8 +2,7 @@ pub mod config;
 
 use crate::actors::player::config::PlayerConfig;
 use crate::asset::GameMeshAssets;
-use crate::core::attack::contact_attack::Knockback;
-use crate::core::attack::{AttackSpec, CombatEffect};
+use crate::core::attack::{AttackSpec, CombatEffect, Knockback, ProjectileAttackProperty};
 use crate::core::health::{DeathMessage, Health};
 use crate::core::weapon::WeaponId;
 use crate::core::weapon::bow::spawn_bow;
@@ -115,7 +114,7 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(InputManagerPlugin::<Action>::default())
             .add_systems(
-                Update,
+                FixedUpdate,
                 movement.in_set(GameSet::Core).in_set(RunSet::Playing),
             );
     }
@@ -138,7 +137,10 @@ fn movement(
         .fold(Vec2::ZERO, |sum, direction| sum + *direction)
         .normalize_or_zero();
 
-    velocity.0 = direction * player.move_speed;
+    let desired_velocity = direction * player.move_speed;
+    if velocity.0 != desired_velocity {
+        velocity.0 = desired_velocity;
+    }
 }
 
 pub fn spawn_player(
@@ -171,12 +173,12 @@ pub fn spawn_player(
         &WeaponConfig {
             id: WeaponId::Bow,
             targeting: Default::default(),
-            attack: AttackSpec::Projectile {
+            attack: AttackSpec::Projectile(ProjectileAttackProperty {
                 range: 560.0,
                 cooldown: 1.5,
-                projectile_speed: 60.0,
+                projectile_speed: 560.0,
                 effect: CombatEffect::Damage { amount: 10.0 },
-            },
+            }),
         },
     )
 }

@@ -90,11 +90,23 @@ fn main() {
                 axis_lengths: None,
                 ..default()
             },
-            GizmoConfig::default(),
+            GizmoConfig {
+                enabled: false,
+                ..default()
+            },
         )
         .insert_resource(Gravity::ZERO)
+        .add_systems(Update, toggle_physics_debug)
         .configure_sets(
             Update,
+            (
+                GameSet::Core,
+                GameSet::Gameplay.after(GameSet::Core),
+                GameSet::Ui.after(GameSet::Gameplay),
+            ),
+        )
+        .configure_sets(
+            FixedUpdate,
             (
                 GameSet::Core,
                 GameSet::Gameplay.after(GameSet::Core),
@@ -114,6 +126,11 @@ fn main() {
             (RunSet::Playing
                 .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing))),),
         )
+        .configure_sets(
+            FixedUpdate,
+            (RunSet::Playing
+                .run_if(in_state(GameState::InGame).and_then(in_state(RunPhase::Playing))),),
+        )
         .add_plugins(AssetLoadingPlugin)
         .add_plugins(FontPlugin)
         .init_state::<GameState>()
@@ -122,6 +139,17 @@ fn main() {
         .add_plugins(WorldPlugin)
         .add_plugins(UiPlugin)
         .run();
+}
+
+/// F3 按需切换物理碰撞箱，默认关闭以避免持续绘制大量 Gizmo。
+fn toggle_physics_debug(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut config_store: ResMut<GizmoConfigStore>,
+) {
+    if keys.just_pressed(KeyCode::KeyR) {
+        let (config, _) = config_store.config_mut::<PhysicsGizmos>();
+        config.enabled = !config.enabled;
+    }
 }
 
 fn spawn_world(mut commands: Commands) {

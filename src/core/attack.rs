@@ -2,7 +2,6 @@ pub mod contact_attack;
 pub mod projectile_attack;
 
 use crate::core::RunEntity;
-use crate::core::attack::contact_attack::update_knockback;
 use crate::core::attack::projectile_attack::ProjectilePlugin;
 use crate::{GameSet, RunSet};
 use avian2d::prelude::LinearVelocity;
@@ -14,97 +13,86 @@ use serde::Deserialize;
 #[require(RunEntity)]
 pub enum AttackSpec {
     /// 近战
-    Melee {
-        #[serde(default = "AttackSpec::default_melee_range")]
-        range: f32,
-        #[serde(default = "AttackSpec::default_melee_cooldown")]
-        cooldown: f32,
-        #[serde(default = "AttackSpec::default_melee_effect")]
-        effect: CombatEffect,
-    },
+    Melee(MeleeAttackProperty),
     /// 投掷物/发射物
-    Projectile {
-        #[serde(default = "AttackSpec::default_projectile_range")]
-        range: f32,
-        #[serde(default = "AttackSpec::default_projectile_cooldown")]
-        cooldown: f32,
-        #[serde(default = "AttackSpec::default_projectile_speed")]
-        projectile_speed: f32,
-        #[serde(default = "AttackSpec::default_projectile_effect")]
-        effect: CombatEffect,
-    },
+    Projectile(ProjectileAttackProperty),
     /// 法术/技能
-    Spell {
-        #[serde(default = "AttackSpec::default_spell_radius")]
-        radius: f32,
-        #[serde(default = "AttackSpec::default_spell_cooldown")]
-        cooldown: f32,
-        #[serde(default = "AttackSpec::default_spell_effect")]
-        effect: CombatEffect,
-    },
+    Spell(SpellAttackProperty),
     /// 治疗
-    Heal {
-        #[serde(default = "AttackSpec::default_heal_radius")]
-        radius: f32,
-        #[serde(default = "AttackSpec::default_heal_cooldown")]
-        cooldown: f32,
-        #[serde(default = "AttackSpec::default_heal_effect")]
-        effect: CombatEffect,
-    },
+    Heal(HealAttackProperty),
 }
 
-/// default config
-impl AttackSpec {
-    fn default_melee_effect() -> CombatEffect {
-        CombatEffect::Damage { amount: 1.0 }
-    }
+#[derive(Component, Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct MeleeAttackProperty {
+    pub range: f32,
+    pub cooldown: f32,
+    pub effect: CombatEffect,
+}
 
-    fn default_melee_range() -> f32 {
-        10.0
+impl Default for MeleeAttackProperty {
+    fn default() -> Self {
+        Self {
+            range: 10.0,
+            cooldown: 1.0,
+            effect: CombatEffect::Damage { amount: 1.0 },
+        }
     }
+}
 
-    fn default_melee_cooldown() -> f32 {
-        1.0
+#[derive(Component, Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ProjectileAttackProperty {
+    pub range: f32,
+    pub cooldown: f32,
+    pub projectile_speed: f32,
+    pub effect: CombatEffect,
+}
+
+impl Default for ProjectileAttackProperty {
+    fn default() -> Self {
+        Self {
+            range: 50.0,
+            cooldown: 1.0,
+            projectile_speed: 120.0,
+            effect: CombatEffect::Damage { amount: 4.0 },
+        }
     }
+}
 
-    fn default_projectile_effect() -> CombatEffect {
-        CombatEffect::Damage { amount: 4.0 }
+#[derive(Component, Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct SpellAttackProperty {
+    pub radius: f32,
+    pub cooldown: f32,
+    pub effect: CombatEffect,
+}
+
+impl Default for SpellAttackProperty {
+    fn default() -> Self {
+        Self {
+            radius: 50.0,
+            cooldown: 2.0,
+            effect: CombatEffect::Damage { amount: 4.0 },
+        }
     }
+}
 
-    fn default_projectile_range() -> f32 {
-        50.0
-    }
+#[derive(Component, Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct HealAttackProperty {
+    pub radius: f32,
+    pub cooldown: f32,
+    pub effect: CombatEffect,
+}
 
-    fn default_projectile_cooldown() -> f32 {
-        1.0
-    }
-
-    fn default_projectile_speed() -> f32 {
-        120.0
-    }
-
-    fn default_spell_effect() -> CombatEffect {
-        CombatEffect::Damage { amount: 4.0 }
-    }
-
-    fn default_spell_radius() -> f32 {
-        50.0
-    }
-
-    fn default_spell_cooldown() -> f32 {
-        2.0
-    }
-
-    fn default_heal_effect() -> CombatEffect {
-        CombatEffect::Heal { amount: 4.0 }
-    }
-
-    fn default_heal_radius() -> f32 {
-        50.0
-    }
-
-    fn default_heal_cooldown() -> f32 {
-        2.0
+impl Default for HealAttackProperty {
+    fn default() -> Self {
+        Self {
+            radius: 50.0,
+            cooldown: 2.0,
+            effect: CombatEffect::Heal { amount: 4.0 },
+        }
     }
 }
 
@@ -112,12 +100,6 @@ impl AttackSpec {
 pub enum CombatEffect {
     Damage { amount: f32 },
     Heal { amount: f32 },
-}
-
-/// 攻击范围
-#[derive(Component, Default, Debug, Clone)]
-pub struct AttackTriggerRange {
-    pub range: f32,
 }
 
 /// 单位正处于击退状态。存在该组件时，常规移动控制暂时让出速度控制权。
@@ -135,7 +117,7 @@ pub struct AttackPlugin;
 impl Plugin for AttackPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ProjectilePlugin).add_systems(
-            Update,
+            FixedUpdate,
             update_knockback
                 .in_set(GameSet::Core)
                 .in_set(RunSet::Playing),
@@ -156,5 +138,25 @@ pub fn update_knockback(
             velocity.0 = Vec2::ZERO;
             commands.entity(entity).remove::<Knockback>();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AttackSpec, CombatEffect};
+
+    #[test]
+    fn attack_variant_properties_support_empty_ron_defaults() {
+        let attack: AttackSpec = ron::from_str("Melee(())").expect("近战默认配置应该可以反序列化");
+
+        let AttackSpec::Melee(property) = attack else {
+            panic!("应该反序列化为近战攻击");
+        };
+        assert_eq!(property.range, 10.0);
+        assert_eq!(property.cooldown, 1.0);
+        assert!(matches!(
+            property.effect,
+            CombatEffect::Damage { amount: 1.0 }
+        ));
     }
 }

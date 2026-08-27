@@ -1,9 +1,9 @@
+use crate::asset::GameMeshAssets;
 use crate::core::Faction;
+use crate::core::attack::ProjectileAttackProperty;
 use crate::core::weapon::bow::BowPlugin;
 use crate::{GameSet, RunSet};
 use bevy::ecs::VariantDefaults;
-use bevy::ecs::entity::UniqueEntityArray;
-use bevy::ecs::query::QueryEntityError;
 use bevy::prelude::*;
 use serde::Deserialize;
 
@@ -62,12 +62,6 @@ pub struct FireWeaponMessage {
     pub target: Option<Entity>,
 }
 
-/// 武器冷却时间组件
-#[derive(Component, Debug, Clone, Default)]
-pub struct Cooldown {
-    timer: Timer,
-}
-
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum WeaponSet {
     RequestFire,
@@ -103,6 +97,8 @@ fn fire(
     mut fire_message: MessageReader<FireWeaponMessage>,
     weapon_id_query: Query<&WeaponId>,
     faction_query: Query<&Faction>,
+    bows: Query<(&bow::BowProperty, &ProjectileAttackProperty)>,
+    assets: Res<GameMeshAssets>,
 ) {
     for fire in fire_message.read() {
         let weapon = match weapon_id_query.get(fire.weapon) {
@@ -121,10 +117,10 @@ fn fire(
             }
         };
 
-        /// 应用攻击逻辑
+        // 应用攻击逻辑
         match weapon {
             WeaponId::Bow => {
-                commands.run_system_cached_with(bow::attack, (fire.owner, fire.clone(), *faction));
+                bow::attack(&mut commands, fire.owner, fire, *faction, &bows, &assets);
             }
         }
     }

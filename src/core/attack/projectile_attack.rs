@@ -3,23 +3,11 @@ use crate::core::health::{Health, HealthEffect, HealthEffectMessage};
 use crate::core::{Faction, RunEntity};
 use crate::{GameSet, RunSet};
 use avian2d::prelude::{
-    Collider, CollisionEventsEnabled, CollisionStart, LinearVelocity, RigidBody, Sensor, SweptCcd,
+    Collider, CollisionEventsEnabled, CollisionStart, LinearVelocity, Position, RigidBody, Sensor,
+    SweptCcd,
 };
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-
-/// 弹丸属性（挂在武器上）
-#[derive(Component, Debug, Clone, Default)]
-pub struct ProjectileProperty {
-    /// 速度
-    pub speed: f32,
-    /// 一次发射的投射物数量
-    pub num: u32,
-    /// 一次冷却开火次数（不是指弹药容量）
-    pub fires_num: u32,
-    /// 接触伤害
-    pub damage: f32,
-}
 
 /// 弹丸实体（开火时的弹丸属性）
 #[derive(Component, Debug, Clone)]
@@ -27,10 +15,6 @@ pub struct ProjectileProperty {
 pub struct Projectile {
     /// 所有者
     pub owner: Entity,
-    /// 方向
-    pub dir: Vec2,
-    /// 移动速度
-    pub speed: f32,
     /// 伤害
     pub damage: f32,
     /// 是否暴击
@@ -59,15 +43,28 @@ impl Plugin for ProjectilePlugin {
 }
 
 pub fn spawn_projectile(
-    mut commands: &mut Commands,
+    commands: &mut Commands,
     owner: Entity,
     faction: Faction,
     origin: Vec2,
     dir: Vec2,
+    speed: f32,
+    damage: f32,
+    pierce: u32,
     assets: &GameMeshAssets,
 ) {
     if !origin.is_finite() {
         warn!("拒绝生成位置非法的弹丸: {origin:?}");
+        return;
+    }
+
+    if !speed.is_finite() || speed <= 0.0 {
+        warn!("拒绝生成速度非法的弹丸: {speed}");
+        return;
+    }
+
+    if !damage.is_finite() || damage <= 0.0 {
+        warn!("拒绝生成伤害非法的弹丸: {damage}");
         return;
     }
 
@@ -89,24 +86,22 @@ pub fn spawn_projectile(
             faction,
             Projectile {
                 owner,
-                dir: dir.normalize(),
-                speed: { 360.0 },
-                damage: 10.0,
+                damage,
                 crit: false,
-                pierce: 0,
+                pierce,
                 ricochet: 0,
                 lifetime: 10.0,
                 hit: vec![],
             },
             // 碰撞
             RigidBody::Kinematic,
-            LinearVelocity(dir.normalize() * 360.0),
-            Collider::rectangle(1.0, 1.0),
+            LinearVelocity(dir * speed),
+            Collider::circle(0.5),
             Sensor,
             CollisionEventsEnabled,
             SweptCcd::LINEAR,
             // 图形
-            Mesh2d(assets.square.clone()),
+            Mesh2d(assets.circle.clone()),
             MeshMaterial2d(mat),
             Transform::from_translation(origin.extend(0.0))
                 .with_rotation(Quat::from_rotation_z(angle))
@@ -119,15 +114,15 @@ pub fn spawn_projectile(
 fn update_lifetime(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Projectile, &mut Transform)>,
+    mut query: Query<(Entity, &mut Projectile, &Position)>,
     window: Single<&Window, With<PrimaryWindow>>,
 ) {
-    for (entity, mut projectile, mut transform) in &mut query {
+    for (entity, mut projectile, position) in &mut query {
         let dt = time.delta_secs();
         // 存活时间减少
         projectile.lifetime -= dt;
 
-        let pos = transform.translation.truncate();
+        let pos = position.0;
         if projectile.lifetime <= 0.0
             || pos.x.abs() > window.width() / 2.0 + 40.0
             || pos.y.abs() > window.height() / 2.0 + 40.0
@@ -141,7 +136,7 @@ fn update_lifetime(
 fn on_projectile_collision(
     event: On<CollisionStart>,
     mut commands: Commands,
-    projectiles: Query<(&Projectile, &Faction)>,
+    mut projectiles: Query<(&mut Projectile, &Faction)>,
     targets: Query<(&Faction, Option<&Name>), With<Health>>,
     names: Query<&Name>,
     mut effect_writer: MessageWriter<HealthEffectMessage>,
@@ -152,7 +147,7 @@ fn on_projectile_collision(
     let projectile_entity = event.collider1;
     let target_entity = event.collider2;
 
-    let Ok((projectile, projectile_faction)) = projectiles.get(projectile_entity) else {
+    let Ok((mut projectile, projectile_faction)) = projectiles.get_mut(projectile_entity) else {
         return;
     };
 
@@ -163,6 +158,10 @@ fn on_projectile_collision(
 
     // 过滤友军
     if projectile_faction == target_faction {
+        return;
+    }
+
+    if projectile.hit.contains(&target_entity) {
         return;
     }
 
@@ -183,5 +182,10 @@ fn on_projectile_collision(
         },
     });
 
-    commands.entity(projectile_entity).despawn();
+    projectile.hit.push(target_entity);
+    if projectile.pierce == 0 {
+        commands.entity(projectile_entity).despawn();
+    } else {
+        projectile.pierce -= 1;
+    }
 }
