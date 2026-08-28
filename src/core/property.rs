@@ -127,8 +127,12 @@ impl Default for AttackCooldownTime {
 
 impl AttackCooldownTime {
     pub fn change(&mut self, amount: f32) {
-        /// 最低0.05s
+        // 最低 0.05 秒，避免零冷却造成每帧无限攻击。
         self.0 = (self.0 + amount).max(0.05);
+    }
+
+    pub fn change_ratio(&mut self, ratio: f32) {
+        self.0 = (self.0 * (1.0 + ratio)).max(0.05);
     }
 }
 
@@ -185,11 +189,11 @@ impl CriticalStats {
     }
 
     pub fn change_chance(&mut self, amount: f32) {
-        self.chance += amount;
+        self.chance = (self.chance + amount).clamp(0.0, 1.0);
     }
 
     pub fn change_damage_multiplier(&mut self, amount: f32) {
-        self.damage_multiplier += amount;
+        self.damage_multiplier = (self.damage_multiplier + amount).clamp(1.0, 3.5);
     }
 }
 

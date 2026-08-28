@@ -6,7 +6,9 @@ pub struct PausePlugin;
 impl Plugin for PausePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(RunPhase::Paused), pause_physics)
-            .add_systems(OnExit(RunPhase::Paused), resume_physics);
+            .add_systems(OnExit(RunPhase::Paused), resume_physics)
+            .add_systems(OnEnter(RunPhase::LevelUp), pause_physics)
+            .add_systems(OnExit(RunPhase::LevelUp), resume_physics);
     }
 }
 

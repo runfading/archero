@@ -1,6 +1,7 @@
 use crate::core::ability::{
     AbilityQuery, AbilityQueryItem, Ejection, Forward, Multiple, Oblique, Pierce,
 };
+pub use crate::core::ability::AbilityType;
 use crate::skill::SkillSet;
 use bevy::app::{App, Plugin};
 use bevy::prelude::*;
@@ -13,20 +14,6 @@ pub struct AbilityChangeMessage {
     pub effect_entity: Entity,
     /// 作用数值
     pub effect_property: Vec<(AbilityType, u32)>,
-}
-
-#[derive(PartialEq, Eq, Clone, Hash, Copy, Debug)]
-pub enum AbilityType {
-    /// 正向箭
-    Forward,
-    /// 斜向箭
-    Oblique,
-    /// 多重箭
-    Multiple,
-    /// 弹射箭
-    Ejection,
-    /// 穿透
-    Pierce,
 }
 
 /// 属性类
@@ -44,8 +31,6 @@ fn deal_ability_change(
     mut reader: PopulatedMessageReader<AbilityChangeMessage>,
     mut query: Query<AbilityQuery>,
 ) {
-    let mut commands = &mut commands;
-
     for message in reader.read() {
         if let Ok(mut item) = query.get_mut(message.effect_entity) {
             let AbilityQueryItem {
@@ -64,7 +49,7 @@ fn deal_ability_change(
                         } else {
                             commands
                                 .entity(message.effect_entity)
-                                .insert(Forward(*amount));
+                                .insert(Forward(1_u32.saturating_add(*amount)));
                         }
                     }
                     AbilityType::Oblique => {
