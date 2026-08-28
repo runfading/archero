@@ -9,6 +9,7 @@ mod skill;
 use crate::asset::AssetLoadingPlugin;
 use crate::core::CorePlugin;
 use crate::font::FontPlugin;
+use crate::skill::SkillPlugin;
 use crate::ui::UiPlugin;
 use crate::world::WorldPlugin;
 use avian2d::{
@@ -138,6 +139,7 @@ fn main() {
         .add_sub_state::<RunPhase>()
         .add_plugins(CorePlugin)
         .add_plugins(WorldPlugin)
+        .add_plugins(SkillPlugin)
         .add_plugins(UiPlugin)
         .run();
 }

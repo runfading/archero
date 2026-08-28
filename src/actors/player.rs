@@ -51,7 +51,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub const XP_PER_KILL: u32 = 1;
+    pub const XP_PER_KILL: u32 = 5;
 
     fn default_input_map() -> InputMap<Action> {
         use Action::*;
