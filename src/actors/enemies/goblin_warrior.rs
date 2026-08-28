@@ -77,7 +77,6 @@ mod tests {
     use crate::actors::enemies::config::EnemyConfig;
     use crate::asset::GameMeshAssets;
     use crate::core::Faction;
-    use crate::core::health::damage::BaseDamage;
     use crate::core::weapon::WeaponId;
     use crate::core::weapon::bow::BowRuntime;
     use crate::core::weapon::config::WeaponConfigs;
@@ -85,6 +84,7 @@ mod tests {
     use bevy::ecs::world::CommandQueue;
     use bevy::prelude::*;
     use bevy::scene::ScenePlugin;
+    use crate::core::property::BaseDamage;
 
     fn mesh_assets() -> GameMeshAssets {
         GameMeshAssets {

@@ -8,6 +8,7 @@ mod game_clear_ui;
 mod game_over_ui;
 mod main_menu_ui;
 mod playing_ui;
+mod skill_select_ui;
 
 pub struct UiPlugin;
 

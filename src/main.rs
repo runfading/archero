@@ -4,6 +4,7 @@ mod core;
 mod font;
 mod ui;
 mod world;
+mod skill;
 
 use crate::asset::AssetLoadingPlugin;
 use crate::core::CorePlugin;

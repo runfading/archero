@@ -17,9 +17,10 @@ use bevy::window::PrimaryWindow;
 
 pub mod attack;
 pub mod health;
-mod hit;
 mod pause;
+pub mod property;
 pub mod weapon;
+pub mod ability;
 
 /// 局内单位标记
 #[derive(Component, Default, Copy, Clone)]
